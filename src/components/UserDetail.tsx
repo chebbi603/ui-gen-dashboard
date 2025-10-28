@@ -145,8 +145,6 @@ export function UserDetail({
     }
   }
 
-
-
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="w-full sm:max-w-2xl">
@@ -202,7 +200,7 @@ export function UserDetail({
                 )}
               </div>
               <div className="rounded-lg border bg-muted p-3 overflow-auto min-h-48">
-                <pre className="font-mono text-sm leading-relaxed">
+                <pre className="font-mono text-xs leading-relaxed">
                   <code
                     dangerouslySetInnerHTML={{
                       __html: highlightJson(jsonText),

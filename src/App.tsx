@@ -14,10 +14,10 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { IconHome, IconUsers, IconSettings } from "@tabler/icons-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { getToken, login } from "@/lib/auth";
 import UsersTable from "@/components/UsersTable";
 import { UserDetail } from "@/components/UserDetail";
-import { mockUsers } from "@/data/mockUsers";
 import type { User } from "@/data/mockUsers";
 
 function App() {
@@ -26,6 +26,22 @@ function App() {
   const [detailOpen, setDetailOpen] = useState(false);
   const TitleIcon =
     page === "Home" ? IconHome : page === "Users" ? IconUsers : IconSettings;
+
+  // Dev-only: attempt auto-login with seeded credentials when no token is present
+  useEffect(() => {
+    async function ensureLogin() {
+      const token = getToken();
+      if (!token) {
+        try {
+          await login({ email: "test@example.com", password: "password123" });
+        } catch (e) {
+          // Non-blocking: UsersTable will show an error if protected endpoints fail
+          console.warn("Auto-login failed", e);
+        }
+      }
+    }
+    ensureLogin();
+  }, []);
 
   return (
     <SidebarProvider>
@@ -91,12 +107,11 @@ function App() {
             {page === "Users" && (
               <div className="space-y-4">
                 <UsersTable
-                  users={mockUsers}
                   onSelect={(u: User) => {
-                    setSelectedUser(u);
-                    setDetailOpen(true);
-                  }}
-                />
+                     setSelectedUser(u);
+                     setDetailOpen(true);
+                   }}
+                 />
                 <UserDetail
                   user={selectedUser}
                   open={detailOpen}

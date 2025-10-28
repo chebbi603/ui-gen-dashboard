@@ -1,75 +1,58 @@
-# React + TypeScript + Vite
+# React Dashboard MVP — Documentation Overview
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+This documentation summarizes the features implemented so far, how to configure and run the project, how the backend connectivity works, and the current status of the application.
 
-Currently, two official plugins are available:
+## Overview
+- Refactored `UsersTable` to use shadcn UI `Card` and `Table` components for cleaner layout and consistent typography.
+- Improved `UserDetail` formatting and UX with consistent paddings, headings, and controls.
+- Implemented LLM contract generation flow with validation, loading state, and a success notification (no diff screen).
+- Added environment-based backend connectivity using `VITE_API_BASE_URL` and a Vite dev proxy for `/api`.
+- Created API and validation utilities to support contract generation, updates, and JSON safety checks.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## Current Status
+- Dev server runs and UI loads without runtime errors (`npm run dev`).
+- Production build passes cleanly (`npm run build`).
+- Contract generation:
+  - Validates current JSON (syntax + structure) before sending.
+  - Calls `/api/llm/generate` (proxied in dev) or falls back to local generation.
+  - Sends the generated contract to `/api/users/:id/contract` and updates the editor.
+  - Shows a green success banner: "Contract generated and sent." (no diff page).
+- Backend connectivity:
+  - `VITE_API_BASE_URL` controls endpoint base; when absent, same-origin paths are used.
+  - Dev proxy routes `/api` to your backend to avoid CORS during development.
 
-## React Compiler
+## Key Modules
+- `src/components/UsersTable.tsx` — Refactored with shadcn `Card`/`Table` for clarity.
+- `src/components/UserDetail.tsx` — Consistent typography and spacing; generation and success notification.
+- `src/lib/api.ts` — Env-driven base URL, safe fetch helper, generation fallback, and contract update.
+- `src/lib/validation.ts` — `parseJSONSafe` and `validateContractStructure` utilities.
+- `src/components/ContractDiff.tsx` — JSON diff viewer (currently unused per UX request).
+- `vite.config.ts` — Loads env and configures dev proxy for `/api`.
+- `.env.example` — Documents required environment variables.
+- `.gitignore` — Ignores local env files, keeps `.env.example` tracked.
 
-The React Compiler is enabled on this template. See [this documentation](https://react.dev/learn/react-compiler) for more information.
+## Running Locally
+1. Install dependencies: `npm install`
+2. Create env file: `cp .env.example .env`, then set `VITE_API_BASE_URL` (e.g., `http://localhost:3000`).
+3. Start dev: `npm run dev` (see terminal for the local URL, typically `http://localhost:5173` or `5174`).
+4. Build for production: `npm run build`.
 
-Note: This will impact Vite dev & build performances.
+## Backend Connectivity
+- Set `VITE_API_BASE_URL` to your backend host. In dev, Vite proxies `/api` to this target.
+- Endpoints used:
+  - `POST /api/llm/generate` → returns `{ contract: UserContract }`.
+  - `POST /api/users/:id/contract` → returns `{ success: boolean }`.
+- Fallback logic when backend is unavailable:
+  - Increases minor version of the existing contract.
+  - Slightly reduces `thresholds.errorRate` for safer defaults.
 
-## Expanding the ESLint configuration
+## UI Decisions
+- No contract diff screen for now; show a success banner and update the editor to the generated contract.
+- Error feedback uses destructive colors with icon and compact message.
+- Editor and preview are side-by-side on `md+` (`grid-cols-1 md:grid-cols-2`).
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
-
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
-
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+## Next Steps (Optional)
+- Persist last-sent timestamp and backend response details.
+- Add theme toggle and ensure all components follow theme tokens.
+- Add unit/integration tests (e.g., Vitest) for generation, validation, and notifications.
+- Consider token-based auth and timeouts in API calls when backend requires it.
