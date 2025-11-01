@@ -46,6 +46,8 @@ This documentation summarizes the features implemented so far, how to configure 
   - Increases minor version of the existing contract.
   - Slightly reduces `thresholds.errorRate` for safer defaults.
 
+Note: The backend also exposes public canonical endpoints `GET /contracts/canonical` and `GET /contracts/public/canonical` (alias) for read-only access to the latest canonical contract.
+
 ## UI Decisions
 - No contract diff screen for now; show a success banner and update the editor to the generated contract.
 - Error feedback uses destructive colors with icon and compact message.

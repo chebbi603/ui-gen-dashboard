@@ -1,3 +1,4 @@
+Project: react-dashboard (React)
 # UI Changes & Status
 
 This document summarizes the UI refactors and current UX decisions.

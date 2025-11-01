@@ -1,3 +1,4 @@
+Project: react-dashboard (React)
 # Setup & Environment Guide
 
 This guide explains how to configure environment variables, run the development server, and build the project.
@@ -22,6 +23,11 @@ This guide explains how to configure environment variables, run the development 
 - Start dev: `npm run dev`
 - Open the URL shown in the terminal (e.g., `http://localhost:5173` or `5174`).
 - In dev, requests to `/api/...` are proxied to `VITE_API_BASE_URL` (avoids CORS).
+
+### Canonical Endpoint Usage (Optional)
+- For read-only canonical contract access during development:
+  - `GET /contracts/canonical` (public)
+  - `GET /contracts/public/canonical` (public alias)
 
 ## Build
 - Production build: `npm run build`

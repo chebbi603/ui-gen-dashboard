@@ -1,3 +1,4 @@
+Project: react-dashboard (React)
 # Backend API & Connectivity
 
 This doc outlines the API endpoints used by the dashboard, env configuration, and fallback behavior.
@@ -36,6 +37,12 @@ This doc outlines the API endpoints used by the dashboard, env configuration, an
   - Content-Type: `application/json`
   - Body: `{ contract: UserContract }`
   - Response: `{ success: boolean }`
+
+### Public Canonical Contract (Optional)
+- Read-only canonical endpoints exposed by the backend:
+  - `GET /contracts/canonical` — latest canonical contract (public)
+  - `GET /contracts/public/canonical` — public alias; identical response
+- Use these when you need to preview or bootstrap from the canonical contract without authentication.
 
 ## Notes & Future Work
 - Add authentication headers (e.g., bearer tokens) if backend requires it.

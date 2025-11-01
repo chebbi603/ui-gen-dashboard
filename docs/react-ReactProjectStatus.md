@@ -1,3 +1,4 @@
+Project: react-dashboard (React)
 # Project Status and File Guide
 
 This document captures the current state of the project, how it works end‑to‑end, what each file does, and known limitations or next steps. It is intended to be a single source of truth that you can hand to any teammate and have them up and running quickly.
