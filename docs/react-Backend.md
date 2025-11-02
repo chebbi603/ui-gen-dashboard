@@ -9,15 +9,18 @@ This doc outlines the API endpoints used by the dashboard, env configuration, an
 - In development, Vite proxies API routes to `VITE_API_BASE_URL` to avoid CORS.
 - In production, absolute URLs are used when `VITE_API_BASE_URL` is set; otherwise, same-origin relative paths.
 
+### Dev Proxy Paths
+- Proxied routes in `vite.config.ts` (development):
+  - `/api`, `/auth`, `/users`, `/contracts`, `/events`, `/gemini`, `/ping`
+- These map to `VITE_API_BASE_URL` to ensure local calls like `POST /gemini/analyze-events` work without CORS.
+
 ## API Module (`src/lib/api.ts`)
-- `generateContractLLM(payload: GenerateContractInput): Promise<GenerateContractResponse>`
-  - Local-only heuristic generation (no backend call yet).
-  - Bumps the minor version and slightly reduces `thresholds.errorRate`.
+- Local LLM generation removed. Optimization is backend-only via Gemini endpoints.
 - `updateUserContract(userId: string, next: UserContract): Promise<{ success: boolean }>`
   - Calls `POST /contracts/user/:userId` with `{ json: next }`.
   - On failure, returns an optimistic `{ success: true }` for MVP.
-- `triggerContractOptimization(userId: string, currentContract: UserContract, painPoints: PainPoint[]): Promise<{ jobId: string }>`
-  - Calls `POST /gemini/generate-contract` to enqueue an optimization job.
+- `triggerContractOptimization(userId: string): Promise<{ jobId: string }>`
+  - Calls `POST /gemini/generate-contract` with `{ userId }` to enqueue an optimization job.
   - Returns `{ jobId }` on success; UI transitions to polling state.
 - Internal helpers:
   - `buildURL(path: string)` builds an absolute URL when `VITE_API_BASE_URL` is set.
@@ -65,19 +68,27 @@ This doc outlines the API endpoints used by the dashboard, env configuration, an
    - Used by `UserDetail` to render a read-only configuration view.
  - `GET /events/user/:userId`
    - Returns tracking events for the specified user.
-   - Used by `UserDetail` to compute and summarize pain points.
+   - Currently not used by `UserDetail` in the simplified MVP UI.
  - `POST /gemini/generate-contract`
    - Content-Type: `application/json`
-   - Body (enqueue job): `{ userId, priority?: number }`
+   - Body (enqueue job): `{ userId }`
    - Response: `{ jobId: string }`
    - Notes: Job status is retrieved via `GET /gemini/jobs/:jobId`.
- - `GET /gemini/jobs/:jobId`
-   - Polls optimization job status every 2 seconds (UI) up to 60 seconds.
-   - Response: `{ status: 'active' | 'completed' | 'failed', result?: { contract: UserContract, explanation?: string }, error?: string }`
-   - When `status === 'completed'`, UI fetches fresh `GET /contracts/user/:userId` and displays side-by-side Original vs Optimized contracts and an optional LLM explanation.
-   - When `status === 'failed'`, UI shows error banner with the backend-provided message.
-   - On timeout (>60s without terminal state), UI shows a warning and the `jobId` for reference, with a Retry option.
-    - Persistence & resume: UI stores `jobId` in `localStorage` as `optimizationJobId:{userId}` when starting or during polling. It automatically resumes polling on return if the job is still active. The stored key is cleared on completion or failure.
+- `GET /gemini/jobs/:jobId`
+  - Polls optimization job status every 5 seconds (UI) up to 60 seconds.
+  - Response: `{ status: 'active' | 'completed' | 'failed', result?: { contract: UserContract, explanation?: string }, error?: string }`
+  - When `status === 'completed'`, UI fetches fresh `GET /contracts/user/:userId` and displays side-by-side Original vs Optimized contracts and an optional LLM explanation.
+  - When `status === 'failed'`, UI shows error banner with the backend-provided message.
+  - On timeout (>60s without terminal state), UI shows a warning and the `jobId` for reference, with a Retry option.
+   - Persistence & resume: UI stores `jobId` in `localStorage` as `optimizationJobId:{userId}` when starting or during polling. It automatically resumes polling on return if the job is still active. The stored key is cleared on completion or failure.
+
+- `POST /gemini/analyze-events` (Public)
+  - Content-Type: `application/json`
+  - Body: `{ userId: string }`
+  - Returns: `{ painPoints: { title, description, elementId?, page?, severity }[], improvements: { title, description, elementId?, page?, priority }[], eventCount, timestamp }`
+  - Notes:
+    - Public endpoint in MVP: no JWT required; Vite proxy enables same-origin dev calls.
+    - `safeFetch` conditionally injects `Authorization` when a token is present, but explicitly skips adding the header for `/gemini/*` routes.
 
 ### Public Canonical Contract (Optional)
 - Read-only canonical endpoints exposed by the backend:
@@ -87,5 +98,4 @@ This doc outlines the API endpoints used by the dashboard, env configuration, an
 
 ## Notes & Future Work
 - Bearer authentication is injected automatically from `localStorage` or `VITE_API_TOKEN`.
-- Expand heuristic generation to consider analytics and pain point filters, then swap to backend LLM when available (`/llm/generate-contract`).
- - Users list prioritizes backend; mock data remains available for local development only.
+- Users list prioritizes backend; mock data remains available for local development only.

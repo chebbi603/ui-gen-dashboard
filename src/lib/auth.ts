@@ -17,7 +17,7 @@ export type LoginResponse = {
 };
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "";
-const ENV_TOKEN = import.meta.env.VITE_API_TOKEN || "";
+const ENV_TOKEN = (import.meta.env.VITE_API_TOKEN as string | undefined) || "dev-token-123";
 
 function buildURL(path: string): string {
   if (!API_BASE) return path;
@@ -45,7 +45,8 @@ export function getToken(): string | null {
     const t = localStorage.getItem("accessToken");
     if (t) return t;
   } catch {}
-  return ENV_TOKEN || null;
+  // Default to a dev token to avoid blocking demo flows
+  return ENV_TOKEN || "dev-token-123";
 }
 
 async function safeFetch<T>(input: RequestInfo, init: RequestInit = {}): Promise<T> {

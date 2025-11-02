@@ -10,12 +10,15 @@ This changelog highlights recent additions and behavioral updates. It complement
 - Environment:
   - `VITE_API_BASE_URL` used for API calls (proxied in dev).
   - `VITE_WS_URL` prepared for future realtime features.
+ - `analyzeUserEvents` now returns both `painPoints` and `improvements` arrays from `POST /gemini/analyze-events`.
 
 ## UI and UX
 - UsersTable migrated to shadcn-style components; client-side search and sort with reactive inputs.
 - UserDetail improved editor styling, rich preview, and clearer error display; filters for fields and pain points.
 - `ContractDiff` component present but currently unused; slated for future diff visualizations.
 - Visual consistency: typography and spacing aligned across table, sheet, and sidebar.
+ - Safer JSON highlighter in `UserDetail` escapes HTML and applies minimal token coloring using capture-group replacements (no callback parameters).
+ - Event Analysis adds a "Suggested Improvements" section alongside "Detected Pain Points" with priority badges.
 
 ## Dev Experience
 - React 19 + Vite + TypeScript + Tailwind v4; Radix primitives powering headless UI parts.

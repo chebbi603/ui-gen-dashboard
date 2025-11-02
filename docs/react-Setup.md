@@ -14,10 +14,12 @@ This guide explains how to configure environment variables, run the development 
 - Copy the example env file: `cp .env.example .env`
 - Set `VITE_API_BASE_URL` to your backend (e.g., `http://localhost:3000`).
 - Optional: set `VITE_API_TIMEOUT_MS` (default example is `10000`).
+- Optional: set `VITE_API_TOKEN` (dev JWT or API token). When absent, a dev fallback may be used.
 
 ### Notes
 - `.gitignore` is configured to ignore local env files while keeping `.env.example` tracked.
 - Vite only exposes env vars that start with `VITE_` to the client bundle.
+ - After editing `.env`, restart `npm run dev` to apply changes.
 
 ## Development
 - Start dev: `npm run dev`

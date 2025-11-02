@@ -8,16 +8,7 @@ export const WS_URL: string | undefined =
   (API_BASE ? API_BASE.replace(/^http/, "ws") : undefined);
 const API_TIMEOUT_MS = Number(import.meta.env.VITE_API_TIMEOUT_MS ?? 8000);
 
-export type GenerateContractInput = {
-  userId: string;
-  currentContract: UserContract;
-  painPoints: PainPoint[];
-  analytics?: Record<string, unknown>;
-};
-
-export type GenerateContractResponse = {
-  contract: UserContract;
-};
+// Removed local LLM generation; backend-only optimization via /gemini
 
 export type OptimizationRequest = {
   userId: string;
@@ -109,7 +100,8 @@ async function safeFetch<T>(input: RequestInfo, init: RequestInit = {}): Promise
   if (!headers.has("Content-Type") && init.method && init.method !== "GET") {
     headers.set("Content-Type", "application/json");
   }
-  if (token) headers.set("Authorization", `Bearer ${token}`);
+  const isGemini = typeof input === "string" && input.includes("/gemini/");
+  if (token && !isGemini) headers.set("Authorization", `Bearer ${token}`);
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
   let res: Response;
@@ -125,23 +117,7 @@ async function safeFetch<T>(input: RequestInfo, init: RequestInit = {}): Promise
   return (await res.json()) as T;
 }
 
-// Local-only generation fallback (no backend generation endpoint)
-export async function generateContractLLM(
-  payload: GenerateContractInput
-): Promise<GenerateContractResponse> {
-  const next: UserContract = {
-    ...payload.currentContract,
-    version: bumpMinor(payload.currentContract.version),
-    thresholds: {
-      ...payload.currentContract.thresholds,
-      errorRate: Math.max(
-        0,
-        (payload.currentContract.thresholds?.errorRate ?? 0.1) - 0.02
-      ),
-    },
-  };
-  return { contract: next };
-}
+// Local LLM generation removed
 
 export async function updateUserContract(
   userId: string,
@@ -176,7 +152,8 @@ export async function getUserContract(
 
 export async function getUserEvents(userId: string): Promise<Event[]> {
   try {
-    const payload = await safeFetch<unknown>(buildURL(`/events/user/${userId}`), {
+    // Correct route: backend exposes GET /users/:id/tracking-events
+    const payload = await safeFetch<unknown>(buildURL(`/users/${userId}/tracking-events`), {
       method: "GET",
     });
     const src = (typeof payload === "object" && payload !== null) ? (payload as Record<string, unknown>) : undefined;
@@ -202,11 +179,12 @@ export async function getUserEvents(userId: string): Promise<Event[]> {
         : new Date().toISOString();
       const eventTypeRaw = obj["eventType"] ?? obj["type"] ?? "unknown";
       const eventType = typeof eventTypeRaw === "string" ? eventTypeRaw : String(eventTypeRaw);
-      const componentIdRaw = obj["componentId"] ?? obj["elementId"];
+      // Backend returns `component` in TrackingEventDto; also tolerate componentId/elementId
+      const componentIdRaw = obj["componentId"] ?? obj["elementId"] ?? obj["component"];
       const componentId = typeof componentIdRaw === "string" ? componentIdRaw : undefined;
       const sessionIdRaw = obj["sessionId"];
       const sessionId = typeof sessionIdRaw === "string" ? sessionIdRaw : undefined;
-      const dataRaw = obj["data"];
+      const dataRaw = obj["data"] ?? obj["payload"];
       const data = (dataRaw && typeof dataRaw === "object") ? (dataRaw as Record<string, unknown>) : undefined;
       if (!id || !ts || !eventType) continue;
       result.push({ id, userId, timestamp: ts, eventType, componentId, sessionId, data });
@@ -218,26 +196,16 @@ export async function getUserEvents(userId: string): Promise<Event[]> {
   }
 }
 
-function bumpMinor(version: string): string {
-  const parts = version.split(".").map((p) => parseInt(p, 10));
-  if (parts.length >= 2 && Number.isFinite(parts[1])) {
-    parts[1] += 1;
-    return parts.join(".");
-  }
-  return version + ".1";
-}
+// Version bump utilities removed with local generation
 
 export async function triggerContractOptimization(
-  userId: string,
-  _currentContract: UserContract,
-  _painPoints: PainPoint[]
+  userId: string
 ): Promise<{ jobId: string }> {
-  const priority = Math.min(5, Math.max(1, _painPoints.length >= 5 ? 3 : 2));
   const res = await safeFetch<OptimizationResponse>(
     buildURL(`/gemini/generate-contract`),
     {
       method: "POST",
-      body: JSON.stringify({ userId, priority }),
+      body: JSON.stringify({ userId }),
     }
   );
   return { jobId: res.jobId };
@@ -276,4 +244,65 @@ export async function getOptimizationJobStatus(jobId: string): Promise<JobStatus
   const url = buildURL(`/gemini/jobs/${trimmed}`);
   const payload = await safeFetch<unknown>(url, { method: "GET" });
   return normalizeJobStatusPayload(payload);
+}
+
+// Analyze user events via backend Gemini endpoint
+export type ImprovementSuggestion = {
+  title: string;
+  description: string;
+  elementId?: string;
+  page?: string;
+  priority: "low" | "medium" | "high";
+};
+
+export async function analyzeUserEvents(
+  userId: string
+): Promise<{ painPoints: PainPoint[]; improvements: ImprovementSuggestion[] }> {
+  const payload = await safeFetch<unknown>(buildURL(`/gemini/analyze-events`), {
+    method: "POST",
+    body: JSON.stringify({ id: userId }),
+  });
+  const src = (typeof payload === "object" && payload !== null)
+    ? (payload as Record<string, unknown>)
+    : {};
+  const container = (typeof src.data === "object" && src.data !== null)
+    ? (src.data as Record<string, unknown>)
+    : src;
+  const arr: unknown[] = Array.isArray(container?.painPoints)
+    ? (container!.painPoints as unknown[])
+    : Array.isArray((container as any)?.items)
+    ? (((container as any).items) as unknown[])
+    : [];
+  const improvementsArr: unknown[] = Array.isArray((container as any)?.improvements)
+    ? (((container as any).improvements) as unknown[])
+    : [];
+  const result: PainPoint[] = [];
+  for (let i = 0; i < arr.length; i++) {
+    const p = arr[i];
+    const obj = (typeof p === "object" && p !== null) ? (p as Record<string, unknown>) : {};
+    const typeRaw = obj["type"];
+    const typeStr = typeof typeRaw === "string" ? typeRaw : "unknown";
+    const normalizedType = typeStr.replace(/_/g, "-").replace(/long-dwell/i, "long dwell");
+    const pageRaw = obj["page"];
+    const page = typeof pageRaw === "string" ? pageRaw : "Unknown";
+    const compRaw = obj["componentId"] ?? obj["component"];
+    const component = typeof compRaw === "string" ? compRaw : "Unknown";
+    const tsRaw = obj["lastSeen"] ?? obj["firstSeen"] ?? obj["timestamp"];
+    const timestamp = typeof tsRaw === "string" ? tsRaw : new Date().toISOString();
+    const id = `${userId}-${i}-${Date.now()}`;
+    result.push({ id, type: normalizedType as PainPoint["type"], timestamp, page, component });
+  }
+  const improvements: ImprovementSuggestion[] = [];
+  for (let i = 0; i < improvementsArr.length; i++) {
+    const imp = improvementsArr[i];
+    const obj = (typeof imp === "object" && imp !== null) ? (imp as Record<string, unknown>) : {};
+    const title = typeof obj["title"] === "string" ? (obj["title"] as string) : "Untitled";
+    const description = typeof obj["description"] === "string" ? (obj["description"] as string) : "";
+    const page = typeof obj["page"] === "string" ? (obj["page"] as string) : undefined;
+    const elementId = typeof obj["elementId"] === "string" ? (obj["elementId"] as string) : undefined;
+    const prRaw = obj["priority"];
+    const priority = prRaw === "high" || prRaw === "medium" || prRaw === "low" ? (prRaw as any) : "medium";
+    improvements.push({ title, description, page, elementId, priority });
+  }
+  return { painPoints: result, improvements };
 }

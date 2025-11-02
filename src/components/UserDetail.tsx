@@ -9,31 +9,56 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { IconUser, IconAlertTriangle, IconLoader2, IconCircleCheck } from "@tabler/icons-react";
-import { getUserContract, getUserEvents, triggerContractOptimization, getOptimizationJobStatus } from "@/lib/api";
-import type { UserContract, PainPoint } from "@/data/mockUsers";
-import type { Event, DetectedPainPoint, PainPointType } from "@/lib/types";
-import { detectPainPoints, filterEventsByRange } from "@/lib/pain-point-detector";
+import {
+  IconUser,
+  IconAlertTriangle,
+  IconLoader2,
+  IconCircleCheck,
+} from "@tabler/icons-react";
+import {
+  getUserContract,
+  triggerContractOptimization,
+  getOptimizationJobStatus,
+} from "@/lib/api";
+import { useEventAnalysis } from "@/hooks/useEventAnalysis";
+import { formatDateTime } from "@/data/mockUsers";
+import type { UserContract } from "@/data/mockUsers";
 
 function highlightJson(jsonText: string) {
-  const escapeHtml = (s: string) =>
-    s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-  const html = escapeHtml(jsonText)
-    // keys
-    .replace(/("[^"]+":)/g, '<span class="text-blue-400">$1</span>')
-    // strings
-    .replace(/("[^\"]*")/g, '<span class="text-green-400">$1</span>')
-    // numbers
-    .replace(
-      /\b(-?\d+(?:\.\d+)?)\b/g,
-      '<span class="text-orange-400">$1</span>'
-    )
-    // booleans/null
-    .replace(
-      /\b(true|false|null)\b/g,
-      '<span class="text-purple-400">$1</span>'
-    );
-  return html;
+  return highlightJsonSafe(jsonText);
+}
+
+// Safer highlighter that avoids corrupting inserted tag attributes
+function highlightJsonSafe(jsonText: string) {
+  function escapeHtml(s: string): string {
+    return s
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+  const html = escapeHtml(jsonText);
+  const withKeys = html.replace(
+    /(&quot;[^&]*?&quot;)(\s*:\s*)/g,
+    '<span class="text-violet-600">$1</span>$2'
+  );
+  const withStrings = withKeys.replace(
+    /(:\s*)(&quot;.*?&quot;)/g,
+    '$1<span class="text-teal-600">$2</span>'
+  );
+  const withNumbers = withStrings.replace(
+    /(:\s*)(-?\d+(?:\.\d+)?)/g,
+    '$1<span class="text-blue-600">$2</span>'
+  );
+  const withBooleans = withNumbers.replace(
+    /(:\s*)(true|false)/g,
+    '$1<span class="text-orange-600">$2</span>'
+  );
+  const withNull = withBooleans.replace(
+    /(:\s*)(null)/g,
+    '$1<span class="text-gray-500">$2</span>'
+  );
+  return withNull;
 }
 
 function extractVersion(value: unknown): string {
@@ -49,7 +74,7 @@ function extractVersion(value: unknown): string {
   return "";
 }
 
-type TimeRange = "all" | "24h" | "7d" | "30d";
+// Removed TimeRange type (pain points UI simplified)
 
 //
 
@@ -67,29 +92,42 @@ export function UserDetail({
   const [contractLoading, setContractLoading] = useState<boolean>(false);
   const [contractError, setContractError] = useState<string | null>(null);
 
-  const [events, setEvents] = useState<Event[]>([]);
-  const [eventsLoading, setEventsLoading] = useState<boolean>(false);
-  const [eventsError, setEventsError] = useState<string | null>(null);
-
-  const [typeFilter, setTypeFilter] = useState<"all" | PainPointType>("all");
-  const [timeFilter, setTimeFilter] = useState<TimeRange>("all");
+  // Analytics placeholder (no event/pain point detection in MVP)
 
   const [isOptimizing, setIsOptimizing] = useState<boolean>(false);
-  const [optimizationJobId, setOptimizationJobId] = useState<string | null>(null);
-  const [optimizationError, setOptimizationError] = useState<string | null>(null);
+  const [optimizationJobId, setOptimizationJobId] = useState<string | null>(
+    null
+  );
+  const [optimizationError, setOptimizationError] = useState<string | null>(
+    null
+  );
   const [elapsedSeconds, setElapsedSeconds] = useState<number>(0);
   const [showInfoBanner, setShowInfoBanner] = useState<boolean>(false);
   const [pollErrorCount, setPollErrorCount] = useState<number>(0);
   const [showSuccessBanner, setShowSuccessBanner] = useState<boolean>(false);
   const [originalContractJson, setOriginalContractJson] = useState<string>("");
-  const [originalContractVersion, setOriginalContractVersion] = useState<string>("");
+  const [originalContractVersion, setOriginalContractVersion] =
+    useState<string>("");
   const [showContractJson, setShowContractJson] = useState<boolean>(true);
   const [showOriginalJson, setShowOriginalJson] = useState<boolean>(true);
   const [showOptimizedJson, setShowOptimizedJson] = useState<boolean>(true);
-  const [optimizedContractJson, setOptimizedContractJson] = useState<string>("");
-  const [optimizedContractVersion, setOptimizedContractVersion] = useState<string>("");
-  const [optimizationExplanation, setOptimizationExplanation] = useState<string | null>(null);
+  const [optimizedContractJson, setOptimizedContractJson] =
+    useState<string>("");
+  const [optimizedContractVersion, setOptimizedContractVersion] =
+    useState<string>("");
+  const [optimizationExplanation, setOptimizationExplanation] = useState<
+    string | null
+  >(null);
   const [showExplanation, setShowExplanation] = useState<boolean>(false);
+
+  // Event analysis hook
+  const {
+    painPoints,
+    improvements,
+    loading: analysisLoading,
+    error: analysisError,
+    analyzeEvents,
+  } = useEventAnalysis();
 
   const loadContract = useCallback(async () => {
     if (!userId) return;
@@ -112,33 +150,12 @@ export function UserDetail({
     }
   }, [userId]);
 
-  const loadEvents = useCallback(async () => {
-    if (!userId) return;
-    setEventsLoading(true);
-    setEventsError(null);
-    try {
-      const res = await getUserEvents(userId);
-      setEvents(res);
-    } catch (e) {
-      setEventsError("Failed to load events.");
-      setEvents([]);
-    } finally {
-      setEventsLoading(false);
-    }
-  }, [userId]);
-
   useEffect(() => {
     if (!userId) return;
     loadContract();
-    loadEvents();
-  }, [userId, loadContract, loadEvents]);
+  }, [userId, loadContract]);
 
-  const filteredEvents = useMemo(() => filterEventsByRange(events, timeFilter), [events, timeFilter]);
-  const detected: DetectedPainPoint[] = useMemo(() => {
-    const all = detectPainPoints(filteredEvents);
-    if (typeFilter === "all") return all;
-    return all.filter((p) => p.type === typeFilter);
-  }, [filteredEvents, typeFilter]);
+  // Pain point detection removed
 
   useEffect(() => {
     if (!isOptimizing) return;
@@ -162,27 +179,23 @@ export function UserDetail({
   }, [open, userId]);
 
   const canOptimize = useMemo(() => {
-    return Boolean(userId) && !contractLoading && !eventsLoading && !isOptimizing && Boolean(contractJson);
-  }, [userId, contractLoading, eventsLoading, isOptimizing, contractJson]);
+    return (
+      Boolean(userId) &&
+      !contractLoading &&
+      !isOptimizing &&
+      Boolean(contractJson)
+    );
+  }, [userId, contractLoading, isOptimizing, contractJson]);
 
   const disabledReason = useMemo(() => {
     if (!userId) return "No user selected";
     if (contractLoading) return "Contract is loading";
-    if (eventsLoading) return "Events are loading";
     if (!contractJson) return "No contract available";
     if (isOptimizing) return "Optimization already in progress";
     return undefined;
-  }, [userId, contractLoading, eventsLoading, isOptimizing, contractJson]);
+  }, [userId, contractLoading, isOptimizing, contractJson]);
 
-  const toPainPoints = (list: DetectedPainPoint[]): PainPoint[] => {
-    return list.map((p, i) => ({
-      id: `${p.type}-${p.componentId || p.page || i}`,
-      type: p.type === "long-dwell" ? ("long dwell" as PainPoint["type"]) : p.type,
-      timestamp: p.lastSeen || p.firstSeen || new Date().toISOString(),
-      page: p.page || "Unknown",
-      component: p.componentId || "unknown",
-    }));
-  };
+  // Pain points conversion removed
 
   const onOptimize = useCallback(async () => {
     if (!userId) {
@@ -193,13 +206,7 @@ export function UserDetail({
       setOptimizationError("Contract JSON unavailable or invalid.");
       return;
     }
-    let parsed: UserContract | null = null;
-    try {
-      parsed = JSON.parse(contractJson) as UserContract;
-    } catch {
-      setOptimizationError("Invalid contract JSON format.");
-      return;
-    }
+    // Skip local JSON parsing; backend uses userId only for optimization
     setOptimizationError(null);
     setIsOptimizing(true);
     setShowInfoBanner(true);
@@ -212,21 +219,27 @@ export function UserDetail({
     setOriginalContractJson(contractJson);
     setOriginalContractVersion(contractVersion);
     try {
-      const pp = toPainPoints(detected);
-      const res = await triggerContractOptimization(userId, parsed, pp);
+      const res = await triggerContractOptimization(userId);
       setOptimizationJobId(res.jobId);
       try {
         localStorage.setItem(`optimizationJobId:${userId}`, res.jobId);
       } catch {}
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : "Failed to start optimization.";
+      const msg =
+        e instanceof Error ? e.message : "Failed to start optimization.";
       setOptimizationError(msg);
       setIsOptimizing(false);
     }
-  }, [userId, contractJson, detected, contractVersion]);
+  }, [userId, contractJson, contractVersion]);
 
   useEffect(() => {
-    if (!isOptimizing || !optimizationJobId || !optimizationJobId.trim() || !userId) return;
+    if (
+      !isOptimizing ||
+      !optimizationJobId ||
+      !optimizationJobId.trim() ||
+      !userId
+    )
+      return;
     let intervalId: number | undefined;
     let timeoutId: number | undefined;
     let localErrorCount = 0;
@@ -251,14 +264,18 @@ export function UserDetail({
             if (fresh?.json) next = fresh.json;
           } catch {}
           if (!next) {
-            setOptimizationError("New contract not available in response. Please contact support.");
+            setOptimizationError(
+              "New contract not available in response. Please contact support."
+            );
             return;
           }
           setOptimizedContractJson(JSON.stringify(next, null, 2));
           const v = extractVersion(next);
           setOptimizedContractVersion(v);
           setOptimizationExplanation(status.result?.explanation ?? null);
-          try { localStorage.removeItem(`optimizationJobId:${userId}`); } catch {}
+          try {
+            localStorage.removeItem(`optimizationJobId:${userId}`);
+          } catch {}
           return;
         }
         if (status.status === "failed") {
@@ -267,20 +284,25 @@ export function UserDetail({
           setIsOptimizing(false);
           const msg = status.error || "Optimization failed.";
           setOptimizationError(msg);
-          try { localStorage.removeItem(`optimizationJobId:${userId}`); } catch {}
+          try {
+            localStorage.removeItem(`optimizationJobId:${userId}`);
+          } catch {}
           return;
         }
       } catch (err: unknown) {
         localErrorCount += 1;
         setPollErrorCount(localErrorCount);
         if (localErrorCount >= 3) {
-          const msg = err instanceof Error ? err.message : "Network error during polling.";
+          const msg =
+            err instanceof Error
+              ? err.message
+              : "Network error during polling.";
           setOptimizationError(msg);
         }
       }
     };
 
-    intervalId = window.setInterval(check, 2000);
+    intervalId = window.setInterval(check, 5000);
     void check();
 
     timeoutId = window.setTimeout(() => {
@@ -307,7 +329,7 @@ export function UserDetail({
             <span>User Details</span>
           </SheetTitle>
           <SheetDescription>
-            Contract (read-only) and UX pain points summary
+            Configuration Contract and AI Optimization
           </SheetDescription>
         </SheetHeader>
 
@@ -319,11 +341,20 @@ export function UserDetail({
                 <div className="inline-flex items-center gap-2">
                   {contractLoading && (
                     <span className="inline-flex items-center gap-2 text-xs text-muted-foreground">
-                      <IconLoader2 className="size-4 animate-spin" aria-hidden />
+                      <IconLoader2
+                        className="size-4 animate-spin"
+                        aria-hidden
+                      />
                       Loading contract…
                     </span>
                   )}
-                  <Button size="sm" variant="outline" onClick={() => setShowContractJson((v) => !v)} aria-expanded={showContractJson} aria-controls="contract-json">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setShowContractJson((v) => !v)}
+                    aria-expanded={showContractJson}
+                    aria-controls="contract-json"
+                  >
                     {showContractJson ? "Hide JSON" : "Show JSON"}
                   </Button>
                 </div>
@@ -336,14 +367,25 @@ export function UserDetail({
                     <IconAlertTriangle className="size-4" aria-hidden />
                     <span>Failed to load contract.</span>
                   </div>
-                  <Button size="sm" variant="outline" onClick={loadContract} aria-label="Retry loading contract">Retry</Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={loadContract}
+                    aria-label="Retry loading contract"
+                  >
+                    Retry
+                  </Button>
                 </div>
               )}
               <div className="text-sm text-muted-foreground">
                 Contract Version: {contractVersion || "—"}
               </div>
               {contractJson && showContractJson ? (
-                <div id="contract-json" className="rounded-lg border bg-muted p-3 overflow-auto min-h-48" aria-label="Contract JSON">
+                <div
+                  id="contract-json"
+                  className="rounded-lg border bg-muted p-3 overflow-auto min-h-48"
+                  aria-label="Contract JSON"
+                >
                   <pre className="font-mono text-xs leading-relaxed">
                     <code
                       dangerouslySetInnerHTML={{
@@ -353,7 +395,9 @@ export function UserDetail({
                   </pre>
                 </div>
               ) : !contractJson ? (
-                <div className="rounded-md border p-3 text-sm text-muted-foreground">No contract assigned to this user yet.</div>
+                <div className="rounded-md border p-3 text-sm text-muted-foreground">
+                  No contract assigned to this user yet.
+                </div>
               ) : null}
             </CardContent>
           </Card>
@@ -363,96 +407,135 @@ export function UserDetail({
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center justify-between">
-                <span>Pain Points Summary</span>
-                {eventsLoading && (
-                  <span className="inline-flex items-center gap-2 text-xs text-muted-foreground">
-                    <IconLoader2 className="size-4 animate-spin" aria-hidden />
-                    Loading events…
-                  </span>
-                )}
+                <span>Event Analysis</span>
+                <div className="inline-flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => userId && analyzeEvents(userId)}
+                    aria-label="Analyze Events"
+                    disabled={!userId || analysisLoading}
+                  >
+                    {analysisLoading ? (
+                      <span className="inline-flex items-center gap-2">
+                        <IconLoader2
+                          className="size-4 animate-spin"
+                          aria-hidden
+                        />
+                        Analyzing…
+                      </span>
+                    ) : (
+                      <span>Analyze Events</span>
+                    )}
+                  </Button>
+                </div>
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3">
-              {eventsError && (
+              <CardContent className="space-y-3">
+              {analysisLoading && (
+                <div className="flex items-center justify-between rounded-md border px-3 py-2 text-sm">
+                  <div className="inline-flex items-center gap-2">
+                    <IconLoader2 className="size-4 animate-spin" aria-hidden />
+                    <span>Analysis in progress… Please wait.</span>
+                  </div>
+                </div>
+              )}
+              {analysisError && (
                 <div className="flex items-center justify-between rounded-md border border-destructive px-3 py-2 text-destructive">
                   <div className="flex items-center gap-2 text-sm">
                     <IconAlertTriangle className="size-4" aria-hidden />
-                    <span>Failed to load events.</span>
+                    <span>Failed to analyze events: {analysisError}</span>
                   </div>
-                  <Button size="sm" variant="outline" onClick={loadEvents} aria-label="Retry loading events">Retry</Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => userId && analyzeEvents(userId)}
+                    aria-label="Retry analysis"
+                  >
+                    Retry
+                  </Button>
                 </div>
               )}
 
-              <div className="flex flex-wrap items-center gap-2">
-                <label className="text-xs text-muted-foreground">Type</label>
-                <select
-                  aria-label="Filter by pain point type"
-                  value={typeFilter}
-                  onChange={(e) => setTypeFilter(e.target.value as unknown as "all" | PainPointType)}
-                  className="bg-background rounded-md border px-2 py-1.5 text-sm"
-                >
-                  <option value="all">All Types</option>
-                  <option value="rage-click">Rage Clicks</option>
-                  <option value="error">Errors</option>
-                  <option value="long-dwell">Long Dwells</option>
-                  <option value="form-abandon">Form Abandonments</option>
-                </select>
-
-                <label className="text-xs text-muted-foreground ml-2">Time Range</label>
-                <select
-                  aria-label="Filter by time range"
-                  value={timeFilter}
-                  onChange={(e) => setTimeFilter(e.target.value as TimeRange)}
-                  className="bg-background rounded-md border px-2 py-1.5 text-sm"
-                >
-                  <option value="all">All Time</option>
-                  <option value="24h">Last 24 Hours</option>
-                  <option value="7d">Last 7 Days</option>
-                  <option value="30d">Last 30 Days</option>
-                </select>
-              </div>
-
-              {events.length === 0 && !eventsLoading && !eventsError && (
-                <div className="rounded-md border p-3 text-sm text-muted-foreground">No events available for analysis.</div>
+              {Array.isArray(painPoints) && painPoints.length > 0 && (
+                <div className="rounded-md border bg-muted p-3">
+                  <div className="text-sm font-medium mb-2">
+                    Detected Pain Points
+                  </div>
+                  <ul className="list-disc pl-5 text-sm space-y-1">
+                    {painPoints.map((pp) => (
+                      <li key={pp.id}>
+                        <span className="font-medium">{pp.type}</span>
+                        {pp.page ? <span> — {pp.page}</span> : null}
+                        {pp.component ? <span> / {pp.component}</span> : null}
+                        {pp.timestamp ? (
+                          <span className="text-muted-foreground">
+                            {" "}
+                            — {formatDateTime(pp.timestamp)}
+                          </span>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               )}
 
-              <ul className="space-y-2">
-                {detected.map((p, idx) => (
-                  <li key={`${p.type}-${p.componentId || p.page || idx}`} className="rounded-lg border p-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium">
-                        {p.type === "rage-click" && "⚡ Rage Click"}
-                        {p.type === "error" && "❗ Error"}
-                        {p.type === "long-dwell" && "⏱️ Long Dwell"}
-                        {p.type === "form-abandon" && "📝 Form Abandonment"}
-                      </span>
-                      <span className={`text-xs ${p.severity === "high" ? "text-red-600" : p.severity === "medium" ? "text-amber-600" : "text-muted-foreground"}`}>
-                        {p.severity.toUpperCase()}
-                      </span>
-                    </div>
-                    <div className="text-xs text-muted-foreground mt-1">
-                      {p.componentId ? `Component: ${p.componentId}` : p.page ? `Page: ${p.page}` : ""}
-                    </div>
-                    <div className="text-xs mt-1">
-                      {typeof p.count === "number" && <span>Count: {p.count}</span>}
-                      {typeof p.durationMs === "number" && <span>Duration: {Math.round(p.durationMs / 1000)}s</span>}
-                    </div>
-                    <div className="text-xs text-muted-foreground mt-1">
-                      {p.firstSeen && <span>First: {new Date(p.firstSeen).toLocaleString()}</span>}
-                      {p.lastSeen && <span className="ml-2">Last: {new Date(p.lastSeen).toLocaleString()}</span>}
-                    </div>
-                  </li>
-                ))}
-                {detected.length === 0 && events.length > 0 && (
-                  <li className="rounded-lg border p-3 text-xs text-muted-foreground">No pain points detected for this user in the selected time range.</li>
-                )}
-              </ul>
+              {Array.isArray(painPoints) && painPoints.length === 0 && !analysisLoading && !analysisError && (
+                <div className="rounded-md border bg-muted p-3 text-sm text-muted-foreground">
+                  No pain points detected for this user.
+                </div>
+              )}
 
+              {Array.isArray(improvements) && improvements.length > 0 && (
+                <div className="rounded-md border bg-muted p-3">
+                  <div className="text-sm font-medium mb-2">Suggested Improvements</div>
+                  <ul className="list-disc pl-5 text-sm space-y-1">
+                    {improvements.map((imp, idx) => (
+                      <li key={`${imp.title}-${idx}`}>
+                        <span className="font-medium">{imp.title}</span>
+                        {imp.priority ? (
+                          <span className="text-muted-foreground"> — {imp.priority}</span>
+                        ) : null}
+                        {imp.page ? <span> — {imp.page}</span> : null}
+                        {imp.elementId ? <span> / {imp.elementId}</span> : null}
+                        {imp.description ? (
+                          <span className="block text-muted-foreground">{imp.description}</span>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {Array.isArray(painPoints) && painPoints.length > 0 && (
+                <div className="flex items-center justify-end">
+                  <Button
+                    onClick={onOptimize}
+                    disabled={!canOptimize}
+                    aria-label="Optimize UI with This Analysis"
+                    title={disabledReason}
+                  >
+                    Optimize UI with This Analysis
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center justify-between">
+                <span>AI Optimization</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
               {optimizationError && (
                 <div className="flex items-center justify-between rounded-md border border-destructive px-3 py-2 text-destructive">
                   <div className="flex items-center gap-2 text-sm">
                     <IconAlertTriangle className="size-4" aria-hidden />
-                    <span>Failed to start optimization: {optimizationError}</span>
+                    <span>
+                      Failed to start optimization: {optimizationError}
+                    </span>
                   </div>
                   <Button
                     size="sm"
@@ -472,14 +555,23 @@ export function UserDetail({
                       Optimization in progress… Do not refresh the page.
                     </span>
                     <span className="text-muted-foreground">
-                      {optimizationJobId ? `Job ID: ${optimizationJobId}` : "Starting…"}
-                      {" "}• Elapsed time: {elapsedSeconds}s
+                      {optimizationJobId
+                        ? `Job ID: ${optimizationJobId}`
+                        : "Starting…"}{" "}
+                      • Elapsed time: {elapsedSeconds}s
                       {pollErrorCount > 0 && (
-                        <span className="ml-2">• Poll errors: {pollErrorCount}</span>
+                        <span className="ml-2">
+                          • Poll errors: {pollErrorCount}
+                        </span>
                       )}
                     </span>
                   </div>
-                  <Button size="sm" variant="outline" onClick={() => setShowInfoBanner(false)} aria-label="Dismiss optimization status">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setShowInfoBanner(false)}
+                    aria-label="Dismiss optimization status"
+                  >
                     Dismiss
                   </Button>
                 </div>
@@ -491,7 +583,9 @@ export function UserDetail({
                     <IconCircleCheck className="size-4" aria-hidden />
                     <span>Contract optimized successfully!</span>
                   </div>
-                  <span className="text-xs text-muted-foreground">Job ID: {optimizationJobId || "—"}</span>
+                  <span className="text-xs text-muted-foreground">
+                    Job ID: {optimizationJobId || "—"}
+                  </span>
                 </div>
               )}
 
@@ -502,9 +596,12 @@ export function UserDetail({
                   aria-label="Optimize Contract with AI"
                   title={disabledReason}
                 >
-                  {isOptimizing || contractLoading || eventsLoading ? (
+                  {isOptimizing || contractLoading ? (
                     <span className="inline-flex items-center gap-2">
-                      <IconLoader2 className="size-4 animate-spin" aria-hidden />
+                      <IconLoader2
+                        className="size-4 animate-spin"
+                        aria-hidden
+                      />
                       Optimizing…
                     </span>
                   ) : optimizationError ? (
@@ -521,19 +618,36 @@ export function UserDetail({
                     <Card>
                       <CardHeader>
                         <CardTitle className="flex items-center justify-between">
-                          <span>Original Contract {originalContractVersion ? `(Version ${originalContractVersion})` : ""}</span>
-                          <Button size="sm" variant="outline" onClick={() => setShowOriginalJson((v) => !v)} aria-expanded={showOriginalJson} aria-controls="original-contract-json">
+                          <span>
+                            Original Contract{" "}
+                            {originalContractVersion
+                              ? `(Version ${originalContractVersion})`
+                              : ""}
+                          </span>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setShowOriginalJson((v) => !v)}
+                            aria-expanded={showOriginalJson}
+                            aria-controls="original-contract-json"
+                          >
                             {showOriginalJson ? "Hide JSON" : "Show JSON"}
                           </Button>
                         </CardTitle>
                       </CardHeader>
                       <CardContent>
                         {showOriginalJson && (
-                          <div id="original-contract-json" className="rounded-lg border bg-muted p-3 overflow-auto min-h-48" aria-label="Original Contract JSON">
+                          <div
+                            id="original-contract-json"
+                            className="rounded-lg border bg-muted p-3 overflow-auto min-h-48"
+                            aria-label="Original Contract JSON"
+                          >
                             <pre className="font-mono text-xs leading-relaxed">
                               <code
                                 dangerouslySetInnerHTML={{
-                                  __html: highlightJson(originalContractJson || contractJson),
+                                  __html: highlightJsonSafe(
+                                    originalContractJson || contractJson
+                                  ),
                                 }}
                               />
                             </pre>
@@ -545,19 +659,36 @@ export function UserDetail({
                     <Card>
                       <CardHeader>
                         <CardTitle className="flex items-center justify-between">
-                          <span>Optimized Contract {optimizedContractVersion ? `(Version ${optimizedContractVersion})` : ""}</span>
-                          <Button size="sm" variant="outline" onClick={() => setShowOptimizedJson((v) => !v)} aria-expanded={showOptimizedJson} aria-controls="optimized-contract-json">
+                          <span>
+                            Optimized Contract{" "}
+                            {optimizedContractVersion
+                              ? `(Version ${optimizedContractVersion})`
+                              : ""}
+                          </span>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setShowOptimizedJson((v) => !v)}
+                            aria-expanded={showOptimizedJson}
+                            aria-controls="optimized-contract-json"
+                          >
                             {showOptimizedJson ? "Hide JSON" : "Show JSON"}
                           </Button>
                         </CardTitle>
                       </CardHeader>
                       <CardContent>
                         {showOptimizedJson && (
-                          <div id="optimized-contract-json" className="rounded-lg border bg-muted p-3 overflow-auto min-h-48" aria-label="Optimized Contract JSON">
+                          <div
+                            id="optimized-contract-json"
+                            className="rounded-lg border bg-muted p-3 overflow-auto min-h-48"
+                            aria-label="Optimized Contract JSON"
+                          >
                             <pre className="font-mono text-xs leading-relaxed">
                               <code
                                 dangerouslySetInnerHTML={{
-                                  __html: highlightJson(optimizedContractJson),
+                                  __html: highlightJsonSafe(
+                                    optimizedContractJson
+                                  ),
                                 }}
                               />
                             </pre>
@@ -570,25 +701,51 @@ export function UserDetail({
                   <Card>
                     <CardHeader className="flex items-center justify-between">
                       <CardTitle>Optimization Explanation</CardTitle>
-                      <Button size="sm" variant="outline" onClick={() => setShowExplanation((v) => !v)} aria-expanded={showExplanation} aria-controls="optimization-explanation">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setShowExplanation((v) => !v)}
+                        aria-expanded={showExplanation}
+                        aria-controls="optimization-explanation"
+                      >
                         {showExplanation ? "Hide" : "Show"}
                       </Button>
                     </CardHeader>
                     <CardContent>
                       {optimizationExplanation ? (
-                        <div id="optimization-explanation" className="prose prose-sm max-w-none whitespace-pre-wrap">
+                        <div
+                          id="optimization-explanation"
+                          className="prose prose-sm max-w-none whitespace-pre-wrap"
+                        >
                           {optimizationExplanation}
                         </div>
                       ) : (
-                        <div className="text-sm text-muted-foreground">The LLM did not provide an explanation for this optimization.</div>
+                        <div className="text-sm text-muted-foreground">
+                          The LLM did not provide an explanation for this
+                          optimization.
+                        </div>
                       )}
                     </CardContent>
                   </Card>
 
                   <div className="flex items-center justify-end gap-2">
-                    <Button variant="default" disabled title="Not implemented in MVP">Accept Optimization</Button>
-                    <Button variant="outline" onClick={onOptimize}>Reject & Try Again</Button>
-                    <Button variant="secondary" disabled title="Diff view optional">View Diff</Button>
+                    <Button
+                      variant="default"
+                      disabled
+                      title="Not implemented in MVP"
+                    >
+                      Accept Optimization
+                    </Button>
+                    <Button variant="outline" onClick={onOptimize}>
+                      Reject & Try Again
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      disabled
+                      title="Diff view optional"
+                    >
+                      View Diff
+                    </Button>
                   </div>
                 </div>
               )}

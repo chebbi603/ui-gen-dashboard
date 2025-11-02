@@ -46,6 +46,11 @@ export default defineConfig(({ mode }) => {
               changeOrigin: true,
               secure: false,
             },
+            "/gemini": {
+              target: apiBase,
+              changeOrigin: true,
+              secure: false,
+            },
             "/ping": {
               target: apiBase,
               changeOrigin: true,
