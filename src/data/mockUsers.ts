@@ -15,6 +15,7 @@ export type UserContract = {
 export type User = {
   id: string;
   name: string;
+  email?: string;
   lastActive: string; // ISO string
   contractVersion: string;
   contract: UserContract;
@@ -25,6 +26,7 @@ export const mockUsers: User[] = [
   {
     id: "user1",
     name: "Alice Johnson",
+    email: "alice.johnson@example.com",
     lastActive: "2025-10-25T15:30:00Z",
     contractVersion: "v1.2.3",
     contract: {
@@ -55,6 +57,7 @@ export const mockUsers: User[] = [
   {
     id: "user2",
     name: "Bob Smith",
+    email: "bob.smith@example.com",
     lastActive: "2025-10-26T09:15:00Z",
     contractVersion: "v1.3.0",
     contract: {

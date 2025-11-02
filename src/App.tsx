@@ -18,11 +18,10 @@ import { useEffect, useState } from "react";
 import { getToken, login } from "@/lib/auth";
 import UsersTable from "@/components/UsersTable";
 import { UserDetail } from "@/components/UserDetail";
-import type { User } from "@/data/mockUsers";
 
 function App() {
   const [page, setPage] = useState<"Home" | "Users" | "Settings">("Users");
-  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const TitleIcon =
     page === "Home" ? IconHome : page === "Users" ? IconUsers : IconSettings;
@@ -107,13 +106,14 @@ function App() {
             {page === "Users" && (
               <div className="space-y-4">
                 <UsersTable
-                  onSelect={(u: User) => {
-                     setSelectedUser(u);
-                     setDetailOpen(true);
-                   }}
-                 />
+                  selectedUserId={selectedUserId}
+                  onSelectUser={(id: string) => {
+                    setSelectedUserId(id);
+                    setDetailOpen(true);
+                  }}
+                />
                 <UserDetail
-                  user={selectedUser}
+                  userId={selectedUserId}
                   open={detailOpen}
                   onOpenChange={setDetailOpen}
                 />
