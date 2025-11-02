@@ -5,19 +5,20 @@ This doc outlines the API endpoints used by the dashboard, env configuration, an
 
 ## Environment & Proxy
 - `VITE_API_BASE_URL` controls the base hostname for API calls.
-- In development, Vite proxies `/api` to `VITE_API_BASE_URL` to avoid CORS.
-- In production, if `VITE_API_BASE_URL` is set, absolute URLs are used; otherwise, same-origin relative paths (`/api/...`).
+- WebSocket base derives from `VITE_WS_URL` or `VITE_API_BASE_URL` (rewritten to `ws://`).
+- In development, Vite proxies API routes to `VITE_API_BASE_URL` to avoid CORS.
+- In production, absolute URLs are used when `VITE_API_BASE_URL` is set; otherwise, same-origin relative paths.
 
 ## API Module (`src/lib/api.ts`)
 - `generateContractLLM(payload: GenerateContractInput): Promise<GenerateContractResponse>`
-  - Calls `POST /api/llm/generate`.
-  - On failure, falls back by bumping the minor version and slightly reducing `thresholds.errorRate`.
+  - Local-only heuristic generation (no backend call yet).
+  - Bumps the minor version and slightly reduces `thresholds.errorRate`.
 - `updateUserContract(userId: string, next: UserContract): Promise<{ success: boolean }>`
-  - Calls `POST /api/users/:id/contract` with `{ contract: next }`.
+  - Calls `POST /contracts/user/:userId` with `{ json: next }`.
   - On failure, returns an optimistic `{ success: true }` for MVP.
 - Internal helpers:
   - `buildURL(path: string)` builds an absolute URL when `VITE_API_BASE_URL` is set.
-  - `safeFetch<T>(input, init)` wraps `fetch`, throwing on non-`ok` responses.
+  - `safeFetch<T>(input, init)` wraps `fetch`, adds bearer token when available, enforces timeout via `AbortController` using `VITE_API_TIMEOUT_MS` (default 8000 ms), and throws on non-`ok` responses.
 
 ## Request & Response Types
 - `GenerateContractInput`:
@@ -29,13 +30,9 @@ This doc outlines the API endpoints used by the dashboard, env configuration, an
   - `contract: UserContract`
 
 ## Endpoints
-- `POST /api/llm/generate`
+- `POST /contracts/user/:userId`
   - Content-Type: `application/json`
-  - Body: `GenerateContractInput`
-  - Response: `GenerateContractResponse`
-- `POST /api/users/:id/contract`
-  - Content-Type: `application/json`
-  - Body: `{ contract: UserContract }`
+  - Body: `{ json: UserContract }`
   - Response: `{ success: boolean }`
 
 ### Public Canonical Contract (Optional)
@@ -45,6 +42,5 @@ This doc outlines the API endpoints used by the dashboard, env configuration, an
 - Use these when you need to preview or bootstrap from the canonical contract without authentication.
 
 ## Notes & Future Work
-- Add authentication headers (e.g., bearer tokens) if backend requires it.
-- Consider adding request timeout using `AbortController` and `VITE_API_TIMEOUT_MS`.
-- Expand fallback logic to consider more pain point signals.
+- Bearer authentication is injected automatically from `localStorage` or `VITE_API_TOKEN`.
+- Expand heuristic generation to consider analytics and pain point filters, then swap to backend LLM when available (`/llm/generate-contract`).

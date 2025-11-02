@@ -233,6 +233,7 @@ This document captures the current state of the project, how it works endâ€‘toâ€
 
 - Testing
   - No unit/e2e tests; add basic tests for API layer, validation, and UI rendering.
+  - See `docs/react-test-results.md` for current lint and build outcomes.
 
 - Performance
   - Large lists not virtualized; consider table virtualization for scalability.
