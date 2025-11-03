@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import type { PainPoint } from "@/data/mockUsers";
+import type { PainPoint } from "@/lib/types";
 import { analyzeUserEvents, getUserEvents } from "@/lib/api";
 import type { ImprovementSuggestion } from "@/lib/api";
 
@@ -13,7 +13,9 @@ export type UseEventAnalysis = {
 
 export function useEventAnalysis(): UseEventAnalysis {
   const [painPoints, setPainPoints] = useState<PainPoint[] | null>(null);
-  const [improvements, setImprovements] = useState<ImprovementSuggestion[] | null>(null);
+  const [improvements, setImprovements] = useState<
+    ImprovementSuggestion[] | null
+  >(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -43,7 +45,8 @@ export function useEventAnalysis(): UseEventAnalysis {
         setImprovements([]);
         return;
       }
-      const { painPoints: points, improvements: imps } = await analyzeUserEvents(trimmed);
+      const { painPoints: points, improvements: imps } =
+        await analyzeUserEvents(trimmed);
       setPainPoints(points);
       setImprovements(imps);
     } catch (e: unknown) {

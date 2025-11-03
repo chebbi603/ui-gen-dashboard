@@ -3,14 +3,26 @@ Project: react-dashboard (React)
 
 This document summarizes the UI refactors and current UX decisions.
 
+## Settings / Registration
+- Location: `Settings` page in the sidebar.
+- Component: `src/components/RegisterForm.tsx`.
+- Purpose: Create a new user by calling `POST /auth/register`.
+- Behavior:
+  - On success, shows a confirmation banner. Backend auto-assigns a personalized contract derived from the latest canonical contract when available.
+  - On error, displays a destructive banner with message and a dismiss button.
+  - Required fields: `username`, `email`, `password`.
+- Network:
+  - Uses `src/lib/auth.ts::register()` which leverages `safeFetch()` and Vite proxy (`vite.config.ts`).
+
 ## UsersTable
 - Refactored to be the admin entry point for user discovery.
 - Uses shadcn `Card`, `Table`, `Button`, and `Input` components.
 - Fetches users on mount via `getUsers()` with explicit `loading` and `error` states.
 - Error banner shows "Failed to load users" with a `Retry` button.
-- Columns: `Name`, `Email`, `Contract Version`, `Action`.
+- Columns: `Username`, `Email`, `Contract Version`, `Action`.
 - Action column provides a "View Details" button that triggers `onSelectUser(userId)`.
-- Client-side search filters by name and email, case-insensitive, and displays "Showing X of Y users".
+- Client-side search filters by username and email, case-insensitive, and displays "Showing X of Y users".
+ - Data shape: `User` no longer includes `name`; UI consistently uses `username`.
 - Highlights the selected row via `selectedUserId` for visual clarity and accessibility.
 
 ## UserDetail

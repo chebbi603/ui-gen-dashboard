@@ -1,4 +1,4 @@
-import type { UserContract } from "@/data/mockUsers";
+import type { UserContract } from "@/lib/types";
 
 export type ValidationResult = {
   valid: boolean;

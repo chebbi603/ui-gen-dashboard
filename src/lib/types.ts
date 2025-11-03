@@ -22,3 +22,29 @@ export interface DetectedPainPoint {
   componentId?: string;
   page?: string;
 }
+
+// Shared user-related types (moved from data/mockUsers, without `name`)
+export type UserContract = {
+  version: string;
+  rules: Array<{ key: string; value: unknown }>;
+  thresholds: { [k: string]: number };
+};
+
+export type PainPoint = {
+  id: string;
+  // Keep broad compatibility with backend variations
+  type: "rage-click" | "error" | "long dwell" | string;
+  timestamp: string; // ISO string
+  page: string;
+  component: string;
+};
+
+export type User = {
+  id: string;
+  username: string;
+  email?: string;
+  lastActive: string; // ISO string
+  contractVersion: string;
+  contract: UserContract;
+  painPoints: PainPoint[];
+};

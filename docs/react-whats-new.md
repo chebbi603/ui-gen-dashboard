@@ -1,5 +1,9 @@
 Project: react-dashboard (React)
-# What’s New
+# What's New
+
+- 2025-11-03 — Added a registration form under Settings. The form calls `POST /auth/register` to create a new user. The form requires `email`, `username`, `password` (removed `name`). With the latest backend changes, newly registered users automatically receive a personalized contract derived from the latest canonical contract when present.
+
+- 2025-11-03 — Removed the `name` field from user objects and deleted `src/data/mockUsers.ts`. The UI and API now use `username` consistently; `UsersTable` column renamed to `Username` and search updated to use `username` and `email`.
 
 This changelog highlights recent additions and behavioral updates. It complements `react-UI.md`, `react-Backend.md`, and `react-ReactProjectStatus.md` to avoid duplication.
 
@@ -10,7 +14,7 @@ This changelog highlights recent additions and behavioral updates. It complement
 - Environment:
   - `VITE_API_BASE_URL` used for API calls (proxied in dev).
   - `VITE_WS_URL` prepared for future realtime features.
- - `analyzeUserEvents` now returns both `painPoints` and `improvements` arrays from `POST /gemini/analyze-events`.
+ - `analyzeUserEvents` sends `{ userId }` in the POST body and returns both `painPoints` and `improvements` arrays from `POST /gemini/analyze-events`.
 
 ## UI and UX
 - UsersTable migrated to shadcn-style components; client-side search and sort with reactive inputs.

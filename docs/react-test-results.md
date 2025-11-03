@@ -1,6 +1,97 @@
 Project: react-dashboard (React)
 # Test & Build Results
 
+## Latest Run — 2025-11-03 (Build success)
+- Build
+  - Command: `npm run build`
+  - Result: Success
+  - Output:
+    - `dist/index.html` ~0.47 kB (gzip ~0.30 kB)
+    - `dist/assets/index-CXRnMBLP.css` ~52.55 kB (gzip ~10.14 kB)
+    - `dist/assets/index-CCsTdAFU.js` ~330.50 kB (gzip ~103.81 kB)
+  - Duration: ~0.45 s
+
+- Tests
+  - Command: `npm test`
+  - Result: No test script configured in `package.json`.
+  - Notes: Continuing to track build output until unit tests are added (e.g., Vitest).
+
+## Latest Run — 2025-11-03 (Remove `name`; use `username`)
+- Dev Server
+  - Command: `npm run dev`
+  - Result: Running
+  - Local: `http://localhost:5173/`
+  - Notes: Users page shows `Username` column; search works with `username` and `email`. No browser errors observed.
+
+- Build
+  - Command: `npm run build`
+  - Result: Success
+  - Output:
+    - `dist/index.html` ~0.47 kB (gzip ~0.30 kB)
+    - `dist/assets/index-CXRnMBLP.css` ~52.6 kB (gzip ~10.1 kB)
+    - `dist/assets/index-CCsTdAFU.js` ~330.5 kB (gzip ~103.8 kB)
+  - Duration: ~0.73 s
+
+- Tests
+  - Command: `npm test`
+  - Result: No test script configured in `package.json`.
+  - Notes: Tracking build and manual verification pending the addition of unit tests.
+
+## Latest Run — 2025-11-03 (Registration UI)
+- Dev Server
+  - Command: `npm run dev`
+  - Result: Running
+  - Local: `http://localhost:5174/`
+  - Notes: Settings page renders `RegisterForm` without `name` field; registration success shows confirmation banner; errors show destructive banner.
+
+- Build
+  - Command: `npm run build`
+  - Result: Success
+  - Output:
+    - `dist/index.html` ~0.47 kB (gzip ~0.30 kB)
+    - `dist/assets/index-*.css` ~52.6 kB (gzip ~10.1 kB)
+    - `dist/assets/index-*.js` ~330.7 kB (gzip ~103.9 kB)
+
+- Tests
+  - Command: `npm test`
+  - Result: No test script configured in `package.json`.
+  - Notes: This project currently tracks build and manual verification until unit tests are added (e.g., Vitest).
+
+
+## Latest Run — 2025-11-03 (Gemini timeout + clearer errors)
+- Dev Server
+  - Command: `npm run dev`
+  - Result: Running
+  - Local: `http://localhost:5174/` (5173 was in use)
+  - Notes: UI loads; Analyze now surfaces a friendly timeout message when backend is slow.
+
+- Build
+  - Command: `npm run build`
+  - Result: Success
+  - Notes: `safeFetch` now uses `VITE_GEMINI_TIMEOUT_MS` for `/gemini/*` and throws `Request timed out after <ms>ms` on abort.
+
+- Env Notes
+  - `VITE_API_TIMEOUT_MS`: general API timeout (default 8000ms)
+  - `VITE_GEMINI_TIMEOUT_MS`: LLM endpoints timeout (default 3x general)
+  - Behavior: `/gemini/analyze-events` continues to send `{ userId }` as payload.
+
+## Latest Run — 2025-11-03 (analyze-events payload uses userId)
+- Dev Server
+  - Command: `npm run dev`
+  - Result: Running
+  - Local: `http://localhost:5175/`
+  - Notes: Verified `src/lib/api.ts` sends `{ userId }` in `POST /gemini/analyze-events`; UI loads without errors.
+
+- Build
+  - Command: `npm run build`
+  - Result: Success
+  - Notes: No TypeScript errors; payload change does not affect bundle size materially.
+
+- Lint
+  - Command: `npm run lint`
+  - Result: Errors present (unchanged from previous runs)
+  - Notes: Keep existing lint cleanup as a follow-up; feature verified.
+
 ## Latest Run — 2025-11-02 (polling integration)
 - Lint
   - Command: `npm run lint`

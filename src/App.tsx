@@ -17,6 +17,7 @@ import { IconHome, IconUsers, IconSettings } from "@tabler/icons-react";
 import { useState } from "react";
 import UsersTable from "@/components/UsersTable";
 import { UserDetail } from "@/components/UserDetail";
+import RegisterForm from "@/components/RegisterForm";
 
 function App() {
   const [page, setPage] = useState<"Home" | "Users" | "Settings">("Users");
@@ -106,8 +107,11 @@ function App() {
             )}
 
             {page === "Settings" && (
-              <div className="rounded-md border p-6 text-sm text-muted-foreground">
-                Settings coming soon.
+              <div className="space-y-4">
+                <RegisterForm />
+                <div className="rounded-md border p-6 text-sm text-muted-foreground">
+                  Additional settings coming soon.
+                </div>
               </div>
             )}
           </div>

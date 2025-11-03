@@ -21,8 +21,8 @@ import {
   getOptimizationJobStatus,
 } from "@/lib/api";
 import { useEventAnalysis } from "@/hooks/useEventAnalysis";
-import { formatDateTime } from "@/data/mockUsers";
-import type { UserContract } from "@/data/mockUsers";
+import { formatDateTime } from "@/lib/utils";
+import type { UserContract } from "@/lib/types";
 
 function highlightJson(jsonText: string) {
   return highlightJsonSafe(jsonText);

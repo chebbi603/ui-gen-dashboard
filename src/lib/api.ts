@@ -1,4 +1,4 @@
-import type { UserContract, PainPoint, User } from "@/data/mockUsers";
+import type { UserContract, PainPoint, User } from "@/lib/types";
 import type { Event } from "@/lib/types";
 import { getToken } from "@/lib/auth";
 
@@ -7,6 +7,10 @@ export const WS_URL: string | undefined =
   (import.meta.env.VITE_WS_URL as string | undefined) ||
   (API_BASE ? API_BASE.replace(/^http/, "ws") : undefined);
 const API_TIMEOUT_MS = Number(import.meta.env.VITE_API_TIMEOUT_MS ?? 8000);
+const GEMINI_TIMEOUT_MS = Number(
+  // Allow slower LLM endpoints; default to 3x general timeout
+  import.meta.env.VITE_GEMINI_TIMEOUT_MS ?? API_TIMEOUT_MS * 3
+);
 
 // Removed local LLM generation; backend-only optimization via /gemini
 
@@ -59,8 +63,8 @@ export async function getUsers(params?: ListUsersParams): Promise<User[]> {
     const obj = (typeof u === "object" && u !== null) ? (u as Record<string, unknown>) : {};
     const idRaw = obj["_id"] ?? obj["id"];
     const id = typeof idRaw === "string" ? idRaw : String(idRaw ?? "");
-    const nameRaw = obj["name"] ?? obj["username"] ?? obj["email"];
-    const name = typeof nameRaw === "string" ? nameRaw : "Unknown";
+    const usernameRaw = obj["username"] ?? obj["email"] ?? obj["name"];
+    const username = typeof usernameRaw === "string" ? usernameRaw : "Unknown";
     const emailRaw = obj["email"] ?? obj["username"];
     const email = typeof emailRaw === "string"
       ? (obj["email"] ? (emailRaw as string) : `${emailRaw as string}@example.com`)
@@ -71,7 +75,7 @@ export async function getUsers(params?: ListUsersParams): Promise<User[]> {
       : new Date().toISOString();
     return {
       id,
-      name,
+      username,
       email,
       lastActive,
       contractVersion: `v${fallbackVersion}`,
@@ -103,10 +107,23 @@ async function safeFetch<T>(input: RequestInfo, init: RequestInit = {}): Promise
   const isGemini = typeof input === "string" && input.includes("/gemini/");
   if (token && !isGemini) headers.set("Authorization", `Bearer ${token}`);
   const controller = new AbortController();
-  const id = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
+  const timeoutMs = isGemini ? GEMINI_TIMEOUT_MS : API_TIMEOUT_MS;
+  const id = setTimeout(() => controller.abort(), timeoutMs);
   let res: Response;
   try {
     res = await fetch(input, { ...init, headers, signal: controller.signal });
+  } catch (err: unknown) {
+    // Provide clearer message for aborted requests/timeouts
+    // In browsers, AbortError is a DOMException; in Node, it may be an Error
+    const msg = err instanceof Error ? err.message : String(err);
+    if (controller.signal.aborted || /abort/i.test(msg)) {
+      clearTimeout(id);
+      throw new Error(
+        `Request timed out after ${timeoutMs}ms. You can raise VITE_API_TIMEOUT_MS or VITE_GEMINI_TIMEOUT_MS.`
+      );
+    }
+    clearTimeout(id);
+    throw err;
   } finally {
     clearTimeout(id);
   }
@@ -260,7 +277,7 @@ export async function analyzeUserEvents(
 ): Promise<{ painPoints: PainPoint[]; improvements: ImprovementSuggestion[] }> {
   const payload = await safeFetch<unknown>(buildURL(`/gemini/analyze-events`), {
     method: "POST",
-    body: JSON.stringify({ id: userId }),
+    body: JSON.stringify({ userId }),
   });
   const src = (typeof payload === "object" && payload !== null)
     ? (payload as Record<string, unknown>)

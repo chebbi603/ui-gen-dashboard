@@ -1,7 +1,6 @@
 export type RegisterInput = {
   email: string;
   username: string;
-  name: string;
   password: string;
 };
 
@@ -65,9 +64,15 @@ async function safeFetch<T>(input: RequestInfo, init: RequestInit = {}): Promise
 }
 
 export async function register(input: RegisterInput): Promise<{ ok: boolean }> {
+  // Only send the required properties: email, username, password
+  const payload = {
+    email: input.email,
+    username: input.username,
+    password: input.password,
+  };
   return safeFetch(buildURL("/auth/register"), {
     method: "POST",
-    body: JSON.stringify(input),
+    body: JSON.stringify(payload),
   });
 }
 
