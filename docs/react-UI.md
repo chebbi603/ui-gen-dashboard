@@ -34,6 +34,7 @@ This document summarizes the UI refactors and current UX decisions.
   - Error handling: shows a destructive banner with `Retry` if load fails; displays "No contract assigned" when backend returns `null`.
   - Accessibility: preview container uses `pre > code` with mono font and overflow scrolling.
   - Syntax highlighting: minimal highlighter escapes HTML and colors tokens — keys violet, string values teal, numbers blue, booleans orange, and `null` gray — using non-callback regex capture replacements to avoid TypeScript warnings.
+  - Original snapshot source (post-optimization): after a job completes, the "Original Contract" viewer prefers the backend-provided `result.originalSnapshot` from `GET /gemini/jobs/:jobId` when available. If not present, it falls back to the contract fetched prior to optimization. This ensures the baseline shown is exactly what the optimizer saw.
 ### AI Optimization section
   - Streamlined UI with a single action to optimize the user's contract.
   - No events or pain point filters are shown in MVP.
@@ -56,7 +57,7 @@ This document summarizes the UI refactors and current UX decisions.
 - Completed: when `status === 'completed'`, the polling stops immediately. The UI fetches fresh `GET /contracts/user/:userId` and displays side-by-side cards:
   - Original Contract (with prior version)
   - Optimized Contract (with new version)
-  - Explanation: collapsible section labeled "Optimization Explanation" that shows LLM-provided text (markdown/plain) if present; otherwise displays a fallback message.
+  - Explanation: collapsible section labeled "Optimization Explanation" that shows LLM-provided text (markdown/plain) if present; otherwise displays a fallback message. When the explanation includes a diff description, the "View Diff" button scrolls to this section and reveals it for quick comparison.
 - Failed: when `status === 'failed'`, the UI stops polling and shows a destructive banner with the backend error, plus a `Retry Optimization` button.
 - Timeout: if 60 seconds elapse without completion or failure, the UI stops polling, shows a warning that the job may still be processing, and surfaces the `Job ID` for reference. A `Retry` button allows starting a new optimization.
 - Actions: `Accept Optimization` (disabled in MVP), `Reject & Try Again` (re-triggers optimization), and `View Diff` (optional; disabled placeholder).
@@ -85,15 +86,46 @@ This document summarizes the UI refactors and current UX decisions.
 
 ## Components Present but Unused
 - `ContractDiff`: recursive JSON diff viewer with expand/collapse (available for future use, not rendered in current UX).
+ - Note: The current "View Diff" action reveals the textual diff in the explanation panel when provided by the backend. The JSON diff component remains reserved for a future, richer diff visualization.
 
 ## Visual Consistency
 - Spacing: `p-3`, `rounded-lg`, consistent small text sizes for secondary info.
 - Color usage: destructive for errors; severity colors for pain points (red/amber/muted).
  - Layout: compact optimization card; contract preview in a bordered, scrollable container.
- - Buttons: outline and ghost variants explicitly set `text-foreground` to ensure readable contrast in both light and dark themes.
+- Buttons: all dashboard buttons now render with a clear primary background.
+  - Variants (`default`, `outline`, `secondary`, `ghost`, `link`, `destructive`) are unified to use `bg-primary` and `text-primary-foreground` for maximum clarity.
+  - Primary color is a saturated blue (`oklch(0.58 0.19 264)`) to stand out against dark and light surfaces; foreground is white for optimal contrast.
+  - Disabled buttons still reduce opacity via `disabled:opacity-50` for an obvious disabled state.
+ - Sidebar navigation: menu items are anchors (links), not buttons.
+   - They use neutral sidebar accent styling on hover and active states (`hover:bg-sidebar-accent`).
+   - Clicks are handled without navigating away (`href="#"` with `preventDefault`), preserving SPA behavior.
 
 ## Future Enhancements
 - Drill-down into sessions with per-session events and charts.
 - Add `ThemeToggle` and verify dark/light/system modes.
 - Add badges for pain point types using shadcn `Badge`.
 - Consider sparklines for error rates and trend indicators.
+## Personalized Contract Generation (404-friendly)
+
+- Behavior: The User Detail panel allows generating a personalized contract even when none exists yet (i.e., when `GET /users/:id/contract` returns `404 Not Found`).
+- UI Changes:
+  - The primary action shows as `Generate Personalized Contract` when the user has no assigned contract.
+  - The action enables as long as a user is selected and the panel isn’t currently loading or optimizing.
+- Backend call: Triggers `POST /gemini/generate-contract` with the selected `userId`. The backend persists a personalized snapshot derived from the latest canonical, with sanitization and schema validation.
+- Post-generation: The panel polls job status and, on completion, displays the new contract JSON and version.
+- Notes:
+  - Canonical fallback remains available via `GET /contracts/public/canonical` for read-only usage.
+  - The explanation returned by the job is shown in the success panel when available.
+
+### Explanation Diff Behavior
+
+- When the backend provides an explanation with diff context, the UI displays it in the "Optimization Explanation" section.
+- The "View Diff" button focuses and expands this section to aid quick visual comparison.
+- JSON-level structural diffs (tree view) are not yet rendered; the existing `ContractDiff` component is available for future iterations.
+
+### Base Contract Selection
+
+- If a personalized contract is present, it is passed as `baseContract` in the generation request.
+- If personalized is missing, the UI fetches the canonical via `GET /contracts/public/canonical` and passes it as `baseContract`.
+- If canonical is unavailable, the UI shows a clear error: `Canonical contract unavailable; cannot start optimization.`
+- The request also sends detected `painPoints` when available to guide optimization.

@@ -12,8 +12,9 @@ This guide explains how to configure environment variables, run the development 
 
 ## Environment Variables
 - Copy the example env file: `cp .env.example .env`
-- Set `VITE_API_BASE_URL` to your backend (e.g., `http://localhost:3000`).
-- Optional: set `VITE_API_TIMEOUT_MS` (default example is `10000`).
+ - Set `VITE_API_BASE_URL` to your backend (Nest dev default: `http://localhost:8081`).
+ - Optional: set `VITE_API_TIMEOUT_MS` (default example is `10000`).
+ - Optional: set `VITE_GEMINI_TIMEOUT_MS` (default example is `24000`) for `/gemini/*` endpoints.
 - Optional: set `VITE_API_TOKEN` (dev JWT or API token). When absent, a dev fallback may be used.
 
 ### Notes
@@ -24,7 +25,7 @@ This guide explains how to configure environment variables, run the development 
 ## Development
 - Start dev: `npm run dev`
 - Open the URL shown in the terminal (e.g., `http://localhost:5173` or `5174`).
-- In dev, requests to `/api/...` are proxied to `VITE_API_BASE_URL` (avoids CORS).
+ - In dev, requests to `/api`, `/auth`, `/users`, `/contracts`, `/events`, `/gemini`, and `/ping` are proxied to `VITE_API_BASE_URL` (avoids CORS).
 
 ### Canonical Endpoint Usage (Optional)
 - For read-only canonical contract access during development:
@@ -37,5 +38,5 @@ This guide explains how to configure environment variables, run the development 
 
 ## Troubleshooting
 - Port in use: Vite auto-selects another port. Check the terminal for the new URL.
-- Backend unreachable: the generation flow falls back and still updates the editor; set `VITE_API_BASE_URL` correctly.
+ - Backend unreachable: set `VITE_API_BASE_URL` correctly (Nest dev default `http://localhost:8081`).
 - Env changes not reflected: restart `npm run dev` after editing `.env` or `vite.config.ts`.

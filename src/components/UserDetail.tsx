@@ -17,6 +17,7 @@ import {
 } from "@tabler/icons-react";
 import {
   getUserContract,
+  getCanonicalContract,
   triggerContractOptimization,
   getOptimizationJobStatus,
 } from "@/lib/api";
@@ -91,6 +92,8 @@ export function UserDetail({
   const [contractVersion, setContractVersion] = useState<string>("");
   const [contractLoading, setContractLoading] = useState<boolean>(false);
   const [contractError, setContractError] = useState<string | null>(null);
+  const [contractExplanation, setContractExplanation] = useState<string | null>(null);
+  const [showContractExplanation, setShowContractExplanation] = useState<boolean>(false);
 
   // Analytics placeholder (no event/pain point detection in MVP)
 
@@ -139,9 +142,16 @@ export function UserDetail({
         setContractJson(JSON.stringify(res.json, null, 2));
         const v = extractVersion(res.json);
         setContractVersion(v);
+        // Prefer top-level meta.optimizationExplanation; fall back to json.meta.optimizationExplanation
+        const topMeta = (res.meta ?? {}) as Record<string, unknown>;
+        const fromTop = typeof topMeta["optimizationExplanation"] === "string" ? (topMeta["optimizationExplanation"] as string) : null;
+        const jsonMeta = (res.json as any)?.meta ?? {};
+        const fromJson = typeof jsonMeta?.optimizationExplanation === "string" ? (jsonMeta.optimizationExplanation as string) : null;
+        setContractExplanation(fromTop || fromJson || null);
       } else {
         setContractJson("");
         setContractVersion("");
+        setContractExplanation(null);
       }
     } catch (e) {
       setContractError("Failed to load contract.");
@@ -179,21 +189,15 @@ export function UserDetail({
   }, [open, userId]);
 
   const canOptimize = useMemo(() => {
-    return (
-      Boolean(userId) &&
-      !contractLoading &&
-      !isOptimizing &&
-      Boolean(contractJson)
-    );
-  }, [userId, contractLoading, isOptimizing, contractJson]);
+    return Boolean(userId) && !contractLoading && !isOptimizing;
+  }, [userId, contractLoading, isOptimizing]);
 
   const disabledReason = useMemo(() => {
     if (!userId) return "No user selected";
     if (contractLoading) return "Contract is loading";
-    if (!contractJson) return "No contract available";
     if (isOptimizing) return "Optimization already in progress";
     return undefined;
-  }, [userId, contractLoading, isOptimizing, contractJson]);
+  }, [userId, contractLoading, isOptimizing]);
 
   // Pain points conversion removed
 
@@ -202,10 +206,7 @@ export function UserDetail({
       setOptimizationError("No user selected.");
       return;
     }
-    if (!contractJson) {
-      setOptimizationError("Contract JSON unavailable or invalid.");
-      return;
-    }
+    // When no personalized contract exists, allow generation from canonical.
     // Skip local JSON parsing; backend uses userId only for optimization
     setOptimizationError(null);
     setIsOptimizing(true);
@@ -219,7 +220,27 @@ export function UserDetail({
     setOriginalContractJson(contractJson);
     setOriginalContractVersion(contractVersion);
     try {
-      const res = await triggerContractOptimization(userId);
+      // Determine base contract: use personalized if available, otherwise fetch canonical
+      let base: UserContract | null = null;
+      if (contractJson && contractJson.trim()) {
+        try {
+          base = JSON.parse(contractJson) as UserContract;
+        } catch {
+          base = null;
+        }
+      }
+      if (!base) {
+        base = await getCanonicalContract();
+      }
+      if (!base) {
+        setOptimizationError(
+          "Canonical contract unavailable; cannot start optimization."
+        );
+        setIsOptimizing(false);
+        setShowInfoBanner(false);
+        return;
+      }
+      const res = await triggerContractOptimization(userId, base, Array.isArray(painPoints) ? painPoints : undefined);
       setOptimizationJobId(res.jobId);
       try {
         localStorage.setItem(`optimizationJobId:${userId}`, res.jobId);
@@ -231,6 +252,12 @@ export function UserDetail({
       setIsOptimizing(false);
     }
   }, [userId, contractJson, contractVersion]);
+
+  const ctaLabel = useMemo(() => {
+    if (isOptimizing || contractLoading) return "Optimizing…";
+    if (optimizationError) return "Retry Optimization";
+    return contractJson ? "Optimize Contract with AI" : "Generate Personalized Contract";
+  }, [isOptimizing, contractLoading, optimizationError, contractJson]);
 
   useEffect(() => {
     if (
@@ -259,6 +286,15 @@ export function UserDetail({
           setShowSuccessBanner(true);
 
           let next: UserContract | null = status.result?.contract ?? null;
+          // Prefer backend-provided original snapshot as the baseline, if available
+          const original = status.result?.originalSnapshot;
+          if (original && typeof original === "object") {
+            try {
+              setOriginalContractJson(JSON.stringify(original, null, 2));
+            } catch {}
+            const ov = extractVersion(original);
+            setOriginalContractVersion(ov);
+          }
           // Prefer the job's in-memory result; fall back to persisted fetch only if missing
           if (!next) {
             try {
@@ -384,6 +420,30 @@ export function UserDetail({
               <div className="text-sm text-muted-foreground">
                 Contract Version: {contractVersion || "—"}
               </div>
+              {contractExplanation && (
+                <div className="mt-2 rounded-md border bg-muted p-3">
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm font-medium">Latest Optimization Explanation</div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setShowContractExplanation((v) => !v)}
+                      aria-expanded={showContractExplanation}
+                      aria-controls="latest-optimization-explanation"
+                    >
+                      {showContractExplanation ? "Hide" : "Show"}
+                    </Button>
+                  </div>
+                  {showContractExplanation && (
+                    <div
+                      id="latest-optimization-explanation"
+                      className="prose prose-sm max-w-none whitespace-pre-wrap mt-2"
+                    >
+                      {contractExplanation}
+                    </div>
+                  )}
+                </div>
+              )}
               {contractJson && showContractJson ? (
                 <div
                   id="contract-json"
@@ -597,7 +657,7 @@ export function UserDetail({
                 <Button
                   onClick={onOptimize}
                   disabled={!canOptimize}
-                  aria-label="Optimize Contract with AI"
+                  aria-label={contractJson ? "Optimize Contract with AI" : "Generate Personalized Contract"}
                   title={disabledReason}
                 >
                   {isOptimizing || contractLoading ? (
@@ -608,10 +668,8 @@ export function UserDetail({
                       />
                       Optimizing…
                     </span>
-                  ) : optimizationError ? (
-                    <span>Retry Optimization</span>
                   ) : (
-                    <span>Optimize Contract with AI</span>
+                    <span>{ctaLabel}</span>
                   )}
                 </Button>
               </div>
@@ -751,8 +809,12 @@ export function UserDetail({
                     </Button>
                     <Button
                       variant="secondary"
-                      disabled
-                      title="Diff view optional"
+                      onClick={() => {
+                        setShowExplanation(true);
+                        const el = document.getElementById("optimization-explanation");
+                        el?.scrollIntoView({ behavior: "smooth", block: "start" });
+                      }}
+                      title="Scroll to explanation"
                     >
                       View Diff
                     </Button>

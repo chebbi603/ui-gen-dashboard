@@ -16,8 +16,8 @@ const GEMINI_TIMEOUT_MS = Number(
 
 export type OptimizationRequest = {
   userId: string;
-  baseContract: UserContract;
-  painPoints: PainPoint[];
+  baseContract?: UserContract;
+  painPoints?: PainPoint[];
   analytics?: Record<string, unknown>;
 };
 
@@ -30,6 +30,7 @@ export type JobStatusResponse = {
   result?: {
     contract: UserContract;
     explanation?: string;
+    originalSnapshot?: UserContract;
   };
   error?: string;
 };
@@ -154,12 +155,35 @@ export async function updateUserContract(
 
 export async function getUserContract(
   userId: string
-): Promise<{ json: UserContract } | null> {
+): Promise<{ id: string; userId: string; version: string; json: UserContract; createdAt?: string; updatedAt?: string; meta?: Record<string, unknown> } | null> {
   try {
-    return await safeFetch<{ json: UserContract }>(
+    return await safeFetch<{ id: string; userId: string; version: string; json: UserContract; createdAt?: string; updatedAt?: string; meta?: Record<string, unknown> }>(
       buildURL(`/users/${userId}/contract`),
       { method: "GET" }
     );
+  } catch {
+    return null;
+  }
+}
+
+export async function getCanonicalContract(): Promise<UserContract | null> {
+  try {
+    const payload = await safeFetch<unknown>(buildURL(`/contracts/public/canonical`), {
+      method: "GET",
+    });
+    const src = (typeof payload === "object" && payload !== null)
+      ? (payload as Record<string, unknown>)
+      : undefined;
+    // Try common shapes: { json }, { data: { json } }, or plain contract
+    const container = (typeof src?.data === "object" && src!.data !== null)
+      ? (src!.data as Record<string, unknown>)
+      : src;
+    const candidate = (container && typeof container.json === "object")
+      ? (container.json as UserContract)
+      : (typeof payload === "object" && payload !== null)
+      ? (payload as UserContract)
+      : undefined;
+    return candidate ?? null;
   } catch {
     return null;
   }
@@ -214,13 +238,18 @@ export async function getUserEvents(userId: string): Promise<Event[]> {
 // Version bump utilities removed with local generation
 
 export async function triggerContractOptimization(
-  userId: string
+  userId: string,
+  baseContract?: UserContract,
+  painPoints?: PainPoint[]
 ): Promise<{ jobId: string }> {
+  const body: OptimizationRequest = { userId };
+  if (baseContract) body.baseContract = baseContract;
+  if (painPoints && Array.isArray(painPoints)) body.painPoints = painPoints;
   const res = await safeFetch<OptimizationResponse>(
     buildURL(`/gemini/generate-contract`),
     {
       method: "POST",
-      body: JSON.stringify({ userId }),
+      body: JSON.stringify(body),
     }
   );
   return { jobId: res.jobId };
@@ -245,8 +274,13 @@ function normalizeJobStatusPayload(payload: unknown): JobStatusResponse {
   const explanationCandidate = (container && typeof container.explanation === "string")
     ? (container.explanation as string)
     : (typeof src.explanation === "string" ? (src.explanation as string) : undefined);
+  const originalSnapshotCandidate = (container && typeof container.originalSnapshot === "object" && container.originalSnapshot !== null)
+    ? (container.originalSnapshot as UserContract)
+    : (typeof (src as any).originalSnapshot === "object" && (src as any).originalSnapshot !== null)
+    ? ((src as any).originalSnapshot as UserContract)
+    : undefined;
   if (contractCandidate) {
-    result = { contract: contractCandidate, explanation: explanationCandidate };
+    result = { contract: contractCandidate, explanation: explanationCandidate, originalSnapshot: originalSnapshotCandidate };
   }
   return { status, result, error };
 }

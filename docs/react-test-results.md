@@ -1,6 +1,28 @@
 Project: react-dashboard (React)
 # Test & Build Results
 
+## Latest Run — 2025-11-08 (Primary buttons clarity + sidebar links)
+- Dev Server
+  - Command: `npm run dev`
+  - Result: Running
+  - Local: `http://localhost:5173/`
+  - Notes: Buttons now render with a bright primary background. Verified on Users table “View Details” and Settings form actions.
+  - Notes: Sidebar navigation renders as neutral links (not buttons); hover/active accent applies; SPA clicks handled via `preventDefault`.
+
+- Build
+  - Command: `npm run build`
+  - Result: Success
+  - Output:
+    - `dist/index.html` ~0.47 kB (gzip ~0.30 kB)
+    - `dist/assets/index-BFumZb9B.css` ~50.09 kB (gzip ~9.89 kB)
+    - `dist/assets/index-DaH0b-Rm.js` ~332.29 kB (gzip ~104.21 kB)
+  - Duration: ~0.56 s
+
+- Tests
+  - Command: `npm test`
+  - Result: No test script configured.
+  - Notes: Manual visual verification completed via dev server; consider adding visual snapshot tests for Button variants and sidebar link states.
+
 ## Latest Run — 2025-11-05 (Optimized display fix)
 - Dev Server
   - Command: `npm run dev`
@@ -347,3 +369,43 @@ Project: react-dashboard (React)
     - `lib/api.ts`: `@typescript-eslint/no-explicit-any` in normalization.
     - `lib/auth.ts`: `no-empty` blocks and `@typescript-eslint/no-explicit-any`.
   - Follow-up: leave cleanup for a dedicated pass; build passes and proxy verified.
+## Latest Run — 2025-11-08 (Generate when missing)
+- Dev Server
+  - Command: `npm run dev`
+  - Result: Running
+  - Local: `http://localhost:5174/` (5173 in use)
+  - Notes: User Detail shows `Generate Personalized Contract` when no contract exists; button enabled if a user is selected. Base selection now passes personalized when present or canonical via `GET /contracts/public/canonical` when missing.
+
+- Build
+  - Command: `npm run build`
+  - Result: Success
+  - Output:
+    - `dist/index.html` ~0.47 kB (gzip ~0.30 kB)
+    - `dist/assets/index-CXRnMBLP.css` ~52.55 kB (gzip ~10.14 kB)
+    - `dist/assets/index-DmRoZMwY.js` ~331.25 kB (gzip ~104.05 kB)
+  - Duration: ~0.45 s
+
+- Tests
+  - Command: `npm test`
+  - Result: No test script configured (npm error: Missing script "test").
+  - Notes: Manual verification via dev server completed; consider adding Vitest for `UserDetail` CTA rendering.
+## Latest Run — 2025-11-08 (originalSnapshot + explanation diff)
+- Dev Server
+  - Command: `npm run dev`
+  - Result: Running
+  - Local: `http://localhost:5173/`
+  - Notes: Verified the "Original Contract" panel prefers `result.originalSnapshot` from `GET /gemini/jobs/:jobId` after completion. "View Diff" now scrolls to and reveals the explanation section when present.
+
+- Build
+  - Command: `npm run build`
+  - Result: Success
+  - Output:
+    - `dist/index.html` ~0.47 kB (gzip ~0.30 kB)
+    - `dist/assets/index-CXRnMBLP.css` ~52.55 kB (gzip ~10.14 kB)
+    - `dist/assets/index-DjnawtNC.js` ~331.66 kB (gzip ~104.17 kB)
+  - Duration: ~0.52 s
+
+- Tests
+  - Command: `npm test`
+  - Result: No test script configured.
+  - Notes: Manual verification completed via dev server; consider adding unit tests for `normalizeJobStatusPayload` and `UserDetail` post-completion rendering.

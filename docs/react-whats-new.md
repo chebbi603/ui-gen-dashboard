@@ -1,6 +1,9 @@
 Project: react-dashboard (React)
 # What's New
 
+- 2025-11-08 — All dashboard buttons are now primary with a stronger, high-contrast color. Variants (`outline`, `secondary`, `ghost`, `link`, `destructive`) have been unified to render with `bg-primary` and `text-primary-foreground`. The primary color is a saturated blue (`oklch(0.58 0.19 264)`) to ensure the buttons are clearly visible in both themes.
+  - Sidebar navigation updated: menu items are links with neutral accent styling, not primary buttons, for clearer information hierarchy.
+
 - 2025-11-05 — Fixed "Detected Pain Points" labels showing `unknown — Unknown / Unknown`. The UI now maps pain points from backend fields (`title`, `elementId`, `page`) and hides missing values. Timestamps prefer item-level values and fall back to the response-level `timestamp`. This produces concise, accurate labels without placeholders.
 
 - 2025-11-03 — Added a registration form under Settings. The form calls `POST /auth/register` to create a new user. The form requires `email`, `username`, `password` (removed `name`). With the latest backend changes, newly registered users automatically receive a personalized contract derived from the latest canonical contract when present.
@@ -33,3 +36,16 @@ This changelog highlights recent additions and behavioral updates. It complement
 ## Notes
 - Authentication flows remain minimal (token injection only); no full login UI yet.
 - Client-side search/sort only; server-side support is a future enhancement.
+## 2025-11-08 — Generate Personalized Contract when none exists
+
+- Admin dashboard now supports generating a personalized contract even when a user has no assigned contract.
+- The User Detail action label changes to `Generate Personalized Contract` when the contract is missing; the button is enabled as long as a user is selected.
+- Backend call: `POST /gemini/generate-contract` with `userId`; the resulting snapshot is created with the strict schema and sanitization pipeline documented in backend docs.
+- After job completion, the panel fetches and shows the new contract JSON and version.
+
+### 2025-11-08 — Base contract selection fix
+
+- The generation request now includes `baseContract`:
+  - Uses existing personalized contract when available.
+  - Falls back to canonical fetched from `GET /contracts/public/canonical` when personalized is missing.
+- Prevents the error `New contract not available in response` by supplying the required input to the backend.

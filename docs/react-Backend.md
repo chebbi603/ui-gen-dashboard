@@ -76,8 +76,9 @@ This doc outlines the API endpoints used by the dashboard, env configuration, an
    - Notes: Job status is retrieved via `GET /gemini/jobs/:jobId`.
 - `GET /gemini/jobs/:jobId`
   - Polls optimization job status every 5 seconds (UI) up to 60 seconds.
-  - Response: `{ status: 'active' | 'completed' | 'failed', result?: { contract: UserContract, explanation?: string }, error?: string }`
-  - When `status === 'completed'`, UI fetches fresh `GET /contracts/user/:userId` and displays side-by-side Original vs Optimized contracts and an optional LLM explanation.
+  - Response: `{ status: 'active' | 'completed' | 'failed', result?: { contract: UserContract, originalSnapshot?: UserContract, explanation?: string }, error?: string }`
+  - `result.originalSnapshot` represents the exact baseline JSON used by the optimizer. The UI prefers this baseline for the "Original Contract" panel when present.
+  - When `status === 'completed'`, UI fetches fresh `GET /contracts/user/:userId` and displays side-by-side Original vs Optimized contracts and an optional LLM explanation (which may include a textual diff).
   - When `status === 'failed'`, UI shows error banner with the backend-provided message.
   - On timeout (>60s without terminal state), UI shows a warning and the `jobId` for reference, with a Retry option.
    - Persistence & resume: UI stores `jobId` in `localStorage` as `optimizationJobId:{userId}` when starting or during polling. It automatically resumes polling on return if the job is still active. The stored key is cleared on completion or failure.
@@ -99,3 +100,4 @@ This doc outlines the API endpoints used by the dashboard, env configuration, an
 ## Notes & Future Work
 - Bearer authentication is injected automatically from `localStorage` or `VITE_API_TOKEN`.
 - Users list prioritizes backend; mock data remains available for local development only.
+ - Gemini endpoints may use an extended timeout (configurable via `VITE_GEMINI_TIMEOUT_MS`); other API calls use `VITE_API_TIMEOUT_MS`.
