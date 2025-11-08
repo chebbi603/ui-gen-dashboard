@@ -139,7 +139,7 @@ export default function UsersTable({
             )}
             {filtered.map((u) => {
               const selected = selectedUserId === u.id;
-              const version = u.contract?.version || u.contractVersion || "—";
+              const version = u.contractVersion || "—";
               return (
                 <TableRow
                   key={u.id}

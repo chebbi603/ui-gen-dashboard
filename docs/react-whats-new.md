@@ -1,6 +1,8 @@
 Project: react-dashboard (React)
 # What's New
 
+- 2025-11-05 — Fixed "Detected Pain Points" labels showing `unknown — Unknown / Unknown`. The UI now maps pain points from backend fields (`title`, `elementId`, `page`) and hides missing values. Timestamps prefer item-level values and fall back to the response-level `timestamp`. This produces concise, accurate labels without placeholders.
+
 - 2025-11-03 — Added a registration form under Settings. The form calls `POST /auth/register` to create a new user. The form requires `email`, `username`, `password` (removed `name`). With the latest backend changes, newly registered users automatically receive a personalized contract derived from the latest canonical contract when present.
 
 - 2025-11-03 — Removed the `name` field from user objects and deleted `src/data/mockUsers.ts`. The UI and API now use `username` consistently; `UsersTable` column renamed to `Username` and search updated to use `username` and `email`.

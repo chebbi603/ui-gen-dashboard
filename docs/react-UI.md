@@ -70,6 +70,14 @@ This document summarizes the UI refactors and current UX decisions.
   - Pain points: when analysis completes with no detected pain points, a neutral info box appears: "No pain points detected for this user." This makes it clear the job ran successfully.
   - Improvements: when the backend returns an empty `improvements` array, an info box appears: "No suggestions available for this user yet."
 
+### Event Analysis — Display Rules (2025-11-05)
+- Mapping aligns with backend fields to avoid placeholder labels:
+  - `type` uses backend `title` when present; otherwise falls back to backend `type` or a generic label.
+  - `component` maps from backend `elementId` (preferred), or `componentId`/`component` if provided.
+  - `page` shows only when the backend provides it; missing values are hidden instead of displaying `Unknown`.
+  - `timestamp` prefers item-level fields (`lastSeen`, `firstSeen`, `timestamp`) and falls back to the response-level `timestamp` when available; if none are present, the timestamp is omitted in UI.
+- Result: the "Detected Pain Points" list now shows concise, meaningful labels without `Unknown / Unknown` artifacts.
+
 ### Validation & Typing
 - Strict typing: UI and API avoid `any`, using `unknown` plus guards for response normalization.
 - `jobId` validation: the UI validates non-empty `jobId` before polling.

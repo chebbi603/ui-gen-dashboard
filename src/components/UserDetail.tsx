@@ -259,10 +259,13 @@ export function UserDetail({
           setShowSuccessBanner(true);
 
           let next: UserContract | null = status.result?.contract ?? null;
-          try {
-            const fresh = await getUserContract(userId);
-            if (fresh?.json) next = fresh.json;
-          } catch {}
+          // Prefer the job's in-memory result; fall back to persisted fetch only if missing
+          if (!next) {
+            try {
+              const fresh = await getUserContract(userId);
+              if (fresh?.json) next = fresh.json;
+            } catch {}
+          }
           if (!next) {
             setOptimizationError(
               "New contract not available in response. Please contact support."
@@ -354,8 +357,9 @@ export function UserDetail({
                     onClick={() => setShowContractJson((v) => !v)}
                     aria-expanded={showContractJson}
                     aria-controls="contract-json"
+                    disabled={!contractJson || contractLoading}
                   >
-                    {showContractJson ? "Hide JSON" : "Show JSON"}
+                    {contractJson ? (showContractJson ? "Hide JSON" : "Show JSON") : "Show JSON"}
                   </Button>
                 </div>
               </CardTitle>
@@ -636,23 +640,29 @@ export function UserDetail({
                         </CardTitle>
                       </CardHeader>
                       <CardContent>
-                        {showOriginalJson && (
-                          <div
-                            id="original-contract-json"
-                            className="rounded-lg border bg-muted p-3 overflow-auto min-h-48"
-                            aria-label="Original Contract JSON"
-                          >
-                            <pre className="font-mono text-xs leading-relaxed">
-                              <code
-                                dangerouslySetInnerHTML={{
-                                  __html: highlightJsonSafe(
-                                    originalContractJson || contractJson
-                                  ),
-                                }}
-                              />
-                            </pre>
-                          </div>
-                        )}
+                        {showOriginalJson ? (
+                          originalContractJson ? (
+                            <div
+                              id="original-contract-json"
+                              className="rounded-lg border bg-muted p-3 overflow-auto min-h-48"
+                              aria-label="Original Contract JSON"
+                            >
+                              <pre className="font-mono text-xs leading-relaxed">
+                                <code
+                                  dangerouslySetInnerHTML={{
+                                    __html: highlightJsonSafe(
+                                      originalContractJson
+                                    ),
+                                  }}
+                                />
+                              </pre>
+                            </div>
+                          ) : (
+                            <div className="rounded-md border p-3 text-sm text-muted-foreground">
+                              No original snapshot captured.
+                            </div>
+                          )
+                        ) : null}
                       </CardContent>
                     </Card>
 

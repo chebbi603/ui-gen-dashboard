@@ -58,29 +58,30 @@ export async function getUsers(params?: ListUsersParams): Promise<User[]> {
     : Array.isArray(src?.data)
     ? (src!.data as unknown[])
     : [];
-  const fallbackVersion = "1.0.0";
   return arr.map((u) => {
     const obj = (typeof u === "object" && u !== null) ? (u as Record<string, unknown>) : {};
     const idRaw = obj["_id"] ?? obj["id"];
     const id = typeof idRaw === "string" ? idRaw : String(idRaw ?? "");
-    const usernameRaw = obj["username"] ?? obj["email"] ?? obj["name"];
+    const usernameRaw = obj["username"] ?? obj["name"] ?? obj["email"];
     const username = typeof usernameRaw === "string" ? usernameRaw : "Unknown";
     const emailRaw = obj["email"] ?? obj["username"];
     const email = typeof emailRaw === "string"
       ? (obj["email"] ? (emailRaw as string) : `${emailRaw as string}@example.com`)
       : undefined;
-    const lastActiveRaw = obj["updatedAt"] ?? obj["createdAt"];
+    const lastActiveRaw = obj["lastActive"] ?? obj["updatedAt"] ?? obj["createdAt"];
     const lastActive = typeof lastActiveRaw === "string"
       ? lastActiveRaw
       : new Date().toISOString();
+    const contractVersionRaw = obj["contractVersion"];
+    const contractVersion = typeof contractVersionRaw === "string" ? contractVersionRaw : "";
     return {
       id,
       username,
       email,
       lastActive,
-      contractVersion: `v${fallbackVersion}`,
+      contractVersion,
       contract: {
-        version: fallbackVersion,
+        version: contractVersion || "",
         rules: [],
         thresholds: {},
       },
@@ -140,18 +141,15 @@ export async function updateUserContract(
   userId: string,
   next: UserContract,
   contractId?: string
-): Promise<{ success: boolean }> {
-  try {
-    return await safeFetch<{ success: boolean }>(
-      buildURL(`/contracts/user/${userId}`),
-      {
-        method: "POST",
-        body: JSON.stringify({ contractId, json: next }),
-      }
-    );
-  } catch {
-    return { success: true };
-  }
+): Promise<{ id: string; userId: string; version: string; json: UserContract; createdAt?: string; updatedAt?: string; meta?: Record<string, unknown> }> {
+  // Backend requires both json and version; return full ContractDto shape
+  return await safeFetch<{ id: string; userId: string; version: string; json: UserContract; createdAt?: string; updatedAt?: string; meta?: Record<string, unknown> }>(
+    buildURL(`/users/${userId}/contract`),
+    {
+      method: "POST",
+      body: JSON.stringify({ contractId, json: next, version: next.version }),
+    }
+  );
 }
 
 export async function getUserContract(
@@ -159,7 +157,7 @@ export async function getUserContract(
 ): Promise<{ json: UserContract } | null> {
   try {
     return await safeFetch<{ json: UserContract }>(
-      buildURL(`/contracts/user/${userId}`),
+      buildURL(`/users/${userId}/contract`),
       { method: "GET" }
     );
   } catch {
@@ -293,19 +291,23 @@ export async function analyzeUserEvents(
   const improvementsArr: unknown[] = Array.isArray((container as any)?.improvements)
     ? (((container as any).improvements) as unknown[])
     : [];
+  const responseTs = typeof (container as any)?.timestamp === "string"
+    ? ((container as any).timestamp as string)
+    : undefined;
   const result: PainPoint[] = [];
   for (let i = 0; i < arr.length; i++) {
     const p = arr[i];
     const obj = (typeof p === "object" && p !== null) ? (p as Record<string, unknown>) : {};
-    const typeRaw = obj["type"];
-    const typeStr = typeof typeRaw === "string" ? typeRaw : "unknown";
+    const titleRaw = obj["title"] ?? obj["type"];
+    const typeStr = typeof titleRaw === "string" ? titleRaw : "Pain point";
     const normalizedType = typeStr.replace(/_/g, "-").replace(/long-dwell/i, "long dwell");
     const pageRaw = obj["page"];
-    const page = typeof pageRaw === "string" ? pageRaw : "Unknown";
-    const compRaw = obj["componentId"] ?? obj["component"];
-    const component = typeof compRaw === "string" ? compRaw : "Unknown";
-    const tsRaw = obj["lastSeen"] ?? obj["firstSeen"] ?? obj["timestamp"];
-    const timestamp = typeof tsRaw === "string" ? tsRaw : new Date().toISOString();
+    // Use empty string for missing optional display fields to satisfy strict typing
+    const page = typeof pageRaw === "string" ? (pageRaw as string) : "";
+    const compRaw = obj["elementId"] ?? obj["componentId"] ?? obj["component"];
+    const component = typeof compRaw === "string" ? (compRaw as string) : "";
+    const tsRaw = obj["lastSeen"] ?? obj["firstSeen"] ?? obj["timestamp"] ?? responseTs;
+    const timestamp = typeof tsRaw === "string" ? (tsRaw as string) : "";
     const id = `${userId}-${i}-${Date.now()}`;
     result.push({ id, type: normalizedType as PainPoint["type"], timestamp, page, component });
   }

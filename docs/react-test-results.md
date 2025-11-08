@@ -1,6 +1,62 @@
 Project: react-dashboard (React)
 # Test & Build Results
 
+## Latest Run — 2025-11-05 (Optimized display fix)
+- Dev Server
+  - Command: `npm run dev`
+  - Result: Running
+  - Local: `http://localhost:5174/`
+  - Notes: Original vs Optimized contract panels now display distinct content.
+    - Prefer job `result.contract` for optimized display; avoid stale DB fetch.
+    - Original panel shows the captured snapshot only; no fallback to current.
+    - Empty-state message appears when no original snapshot is available.
+
+- Build
+  - Command: `npm run build`
+  - Result: Success
+  - Output:
+    - `dist/index.html` ~0.47 kB (gzip ~0.30 kB)
+    - `dist/assets/index-CXRnMBLP.css` ~52.55 kB (gzip ~10.14 kB)
+    - `dist/assets/index-B-mE9R2V.js` ~330.72 kB (gzip ~103.86 kB)
+  - Duration: ~0.54 s
+
+- Tests
+  - Command: `npm test`
+  - Result: No test script configured.
+  - Notes: Manual verification completed via dev server; consider adding unit tests for `UserDetail` render logic.
+
+## Latest Run — 2025-11-05 (Data-flow docs + build smoke)
+- Build
+  - Command: `npm run build`
+  - Result: Success
+  - Output:
+    - `dist/index.html` ~0.47 kB (gzip ~0.30 kB)
+    - `dist/assets/index-CXRnMBLP.css` ~52.55 kB (gzip ~10.14 kB)
+    - `dist/assets/index-CG1J2Q0-.js` ~330.58 kB (gzip ~103.84 kB)
+  - Duration: ~0.55 s
+
+- Tests
+  - Command: `npm test`
+  - Result: No test script configured in `package.json`.
+  - Notes: Proceeding with build verification until unit tests are added.
+
+## Latest Run — 2025-11-05 (Pain Point display fix)
+- Dev Server
+  - Command: `npm run dev`
+  - Result: Running
+  - Local: `http://localhost:5175/`
+  - Notes: Verified that "Detected Pain Points" no longer show `unknown — Unknown / Unknown`. Labels now use backend `title` for type, `elementId` for component, and display `page` only when present. Timestamps prefer item-level fields and fall back to response-level `timestamp`.
+
+- Build
+  - Command: `npm run build`
+  - Result: Success
+  - Notes: No TypeScript errors from `src/lib/api.ts` mapping changes; bundle size unaffected.
+
+- Tests
+  - Command: `npm test`
+  - Result: No test script configured.
+  - Notes: Manual verification captured; recommend adding unit tests for `analyzeUserEvents` normalization.
+
 ## Latest Run — 2025-11-03 (Build success)
 - Build
   - Command: `npm run build`
